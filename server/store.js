@@ -24,8 +24,16 @@ function save(data) {
 // Возвращает данные клиента (создаёт если нет)
 function getClient(name) {
   const store = load();
-  if (!store[name]) store[name] = { endpoints: [], limitGb: null, blocked: false, note: '' };
+  if (!store[name]) store[name] = { endpoints: [], limitGb: null, blocked: false, note: '', createdAt: null };
   return store[name];
+}
+
+function setCreatedAt(name, ts) {
+  const client = getClient(name);
+  if (!client.createdAt) {
+    client.createdAt = ts || Date.now();
+    saveClient(name, client);
+  }
 }
 
 function saveClient(name, data) {
@@ -87,4 +95,4 @@ function renameClient(oldName, newName) {
   }
 }
 
-module.exports = { getClient, saveClient, trackEndpoint, setBlocked, setLimit, setNote, getAll, renameClient };
+module.exports = { getClient, saveClient, trackEndpoint, setBlocked, setLimit, setNote, setCreatedAt, getAll, renameClient };

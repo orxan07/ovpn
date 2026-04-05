@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
+const { execSync } = require('child_process');
 const wg = require('./wg');
 const system = require('./system');
 const store = require('./store');
@@ -8,7 +10,18 @@ const whitelist = require('./whitelist');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
-const AUTH_TOKEN = process.env.AUTH_TOKEN || 'changeme';
+const ENV_FILE = path.join(__dirname, '.env');
+
+// Читаем токен из .env в runtime (чтобы перегенерация работала без перезапуска)
+function getToken() {
+  try {
+    const env = fs.readFileSync(ENV_FILE, 'utf8');
+    const match = env.match(/AUTH_TOKEN=(.+)/);
+    return match ? match[1].trim() : (process.env.AUTH_TOKEN || 'changeme');
+  } catch {
+    return process.env.AUTH_TOKEN || 'changeme';
+  }
+}
 
 app.use(express.json());
 app.use(cors());
@@ -16,7 +29,7 @@ app.use(express.static(path.join(__dirname, '../client')));
 
 // Auth middleware
 app.use('/api', (req, res, next) => {
-  if (req.headers['authorization'] !== `Bearer ${AUTH_TOKEN}`) {
+  if (req.headers['authorization'] !== `Bearer ${getToken()}`) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   next();
@@ -55,7 +68,9 @@ app.post('/api/peers', (req, res) => {
   try {
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: 'name обязателен' });
-    res.json(wg.createClient(name));
+    const result = wg.createClient(name);
+    store.setCreatedAt(name, Date.now());
+    res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -116,6 +131,17 @@ app.get('/api/peers/:name/config', (req, res) => {
   }
 });
 
+// Скачать .conf файл
+app.get('/api/peers/:name/download', (req, res) => {
+  try {
+    const conf = wg.getClientConf(req.params.name);
+    res.setHeader('Content-Disposition', `attachment; filename="${req.params.name}.conf"`);
+    res.type('text/plain').send(conf);
+  } catch (e) {
+    res.status(404).json({ error: e.message });
+  }
+});
+
 app.get('/api/peers/:name/qr', (req, res) => {
   try {
     res.json({ qr: wg.getClientQr(req.params.name) });
@@ -148,6 +174,76 @@ app.get('/api/peers/:name/endpoints', (req, res) => {
 app.get('/api/system', (req, res) => {
   try {
     res.json(system.getStats());
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Перезапуск сервисов
+app.post('/api/system/restart/:service', (req, res) => {
+  const allowed = ['sing-box', 'wg-quick@wg0'];
+  const service = req.params.service;
+  if (!allowed.includes(service)) return res.status(400).json({ error: 'Недопустимый сервис' });
+  try {
+    execSync(`sudo systemctl restart ${service}`);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Проверка доступности Outline + sing-box
+app.get('/api/system/check', (req, res) => {
+  const results = {};
+
+  // sing-box статус
+  try {
+    const out = execSync('sudo systemctl is-active sing-box', { encoding: 'utf8' }).trim();
+    results.singbox = { ok: out === 'active', status: out };
+  } catch {
+    results.singbox = { ok: false, status: 'inactive' };
+  }
+
+  // WireGuard статус
+  try {
+    const out = execSync('sudo systemctl is-active wg-quick@wg0', { encoding: 'utf8' }).trim();
+    results.wireguard = { ok: out === 'active', status: out };
+  } catch {
+    results.wireguard = { ok: false, status: 'inactive' };
+  }
+
+  // Outline — пробуем достучаться до shadowsocks сервера
+  try {
+    const conf = JSON.parse(execSync('sudo cat /etc/sing-box/config.json', { encoding: 'utf8' }));
+    const outline = conf.outbounds?.find(o => o.tag === 'outline');
+    if (outline) {
+      results.outline = { server: outline.server, port: outline.server_port };
+      try {
+        execSync(`timeout 3 bash -c "echo >/dev/tcp/${outline.server}/${outline.server_port}" 2>/dev/null`);
+        results.outline.ok = true;
+      } catch {
+        results.outline.ok = false;
+      }
+    } else {
+      results.outline = { ok: false, status: 'не настроен' };
+    }
+  } catch (e) {
+    results.outline = { ok: false, status: e.message };
+  }
+
+  res.json(results);
+});
+
+// Перегенерация токена
+app.post('/api/system/rotate-token', (req, res) => {
+  try {
+    const newToken = require('crypto').randomBytes(16).toString('hex');
+    const current = fs.existsSync(ENV_FILE) ? fs.readFileSync(ENV_FILE, 'utf8') : '';
+    const updated = current.includes('AUTH_TOKEN=')
+      ? current.replace(/AUTH_TOKEN=.+/, `AUTH_TOKEN=${newToken}`)
+      : current + `\nAUTH_TOKEN=${newToken}\n`;
+    fs.writeFileSync(ENV_FILE, updated);
+    res.json({ token: newToken });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

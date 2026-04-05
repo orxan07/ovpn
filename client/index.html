@@ -94,6 +94,15 @@
     .domain-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid #1e2235; }
     .domain-item:last-child { border-bottom: none; }
     .domain-name { font-family: monospace; font-size: 13px; }
+
+    /* Services */
+    .service-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #0f1117; border-radius: 8px; }
+    .service-name { font-size: 14px; font-weight: 500; }
+    .service-status { display: flex; align-items: center; gap: 8px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot-green { background: #4ade80; }
+    .dot-red { background: #f87171; }
+    .dot-gray { background: #64748b; }
   </style>
 </head>
 <body>
@@ -156,6 +165,22 @@
         <h2>Состояние сервера</h2>
         <div class="stats-grid" id="statsGrid">
           <div class="stat-item"><div class="stat-label">Загрузка...</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Сервисы</h2>
+        <div id="servicesGrid" style="display:flex; flex-direction:column; gap:10px;">
+          <div class="muted">Загрузка...</div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Токен авторизации</h2>
+        <p class="muted" style="margin-bottom:12px;">Генерирует новый токен и сразу делает старый недействительным. После нажатия скопируйте токен — он показывается один раз.</p>
+        <button class="btn btn-warning" onclick="rotateToken()">Сгенерировать новый токен</button>
+        <div id="newTokenDisplay" style="display:none; margin-top:14px;">
+          <div style="font-size:12px; color:#64748b; margin-bottom:4px;">Новый токен (скопируйте!):</div>
+          <div id="newTokenValue" style="font-family:monospace; background:#0f1117; padding:10px 14px; border-radius:8px; font-size:14px; word-break:break-all; color:#4ade80;"></div>
+          <button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="copyNewToken()">Скопировать</button>
         </div>
       </div>
     </div>
@@ -221,7 +246,10 @@
     <div id="tab-wg" class="tab-content">
       <div class="qr-container">
         <img id="wgQrImg" src="" alt="QR" />
-        <button class="btn btn-ghost" onclick="copyConf()">Скопировать конфиг</button>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
+          <button class="btn btn-ghost" onclick="copyConf()">Скопировать конфиг</button>
+          <button class="btn btn-ghost" onclick="downloadConf()">Скачать .conf</button>
+        </div>
         <pre id="wgConf"></pre>
       </div>
     </div>
@@ -435,6 +463,7 @@
     // ── System ──
 
     async function loadSystem() {
+      loadSystemCheck();
       try {
         const s = await api('GET', '/api/system');
         if (!s) return;
@@ -475,6 +504,66 @@
       } catch (e) {
         document.getElementById('statsGrid').innerHTML = `<div class="stat-item"><div class="stat-label" style="color:#f87171">${e.message}</div></div>`;
       }
+    }
+
+    async function loadSystemCheck() {
+      try {
+        const check = await api('GET', '/api/system/check');
+        if (!check) return;
+        const services = [
+          { key: 'wireguard', label: 'WireGuard', service: 'wg-quick@wg0' },
+          { key: 'singbox', label: 'sing-box', service: 'sing-box' },
+          { key: 'outline', label: 'Outline (Shadowsocks)', service: null },
+        ];
+        document.getElementById('servicesGrid').innerHTML = services.map(({ key, label, service }) => {
+          const info = check[key] || {};
+          const ok = info.ok;
+          const dotClass = ok ? 'dot-green' : 'dot-red';
+          const statusText = ok ? 'работает' : (info.status || 'недоступен');
+          const restartBtn = service
+            ? `<button class="btn btn-sm btn-ghost" onclick="restartService('${service}')">Перезапустить</button>`
+            : '';
+          const extra = key === 'outline' && info.server ? `<span class="muted" style="margin-left:6px;">${info.server}:${info.port}</span>` : '';
+          return `<div class="service-item">
+            <div class="service-name">${label}${extra}</div>
+            <div class="service-status">
+              <span style="font-size:12px; color:${ok ? '#4ade80' : '#f87171'}">${statusText}</span>
+              <div class="dot ${dotClass}"></div>
+              ${restartBtn}
+            </div>
+          </div>`;
+        }).join('');
+      } catch (e) {
+        document.getElementById('servicesGrid').innerHTML = `<div style="color:#f87171">${e.message}</div>`;
+      }
+    }
+
+    async function restartService(service) {
+      if (!confirm(`Перезапустить ${service}?`)) return;
+      try {
+        await api('POST', `/api/system/restart/${encodeURIComponent(service)}`);
+        setTimeout(loadSystemCheck, 2000);
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function rotateToken() {
+      if (!confirm('Сгенерировать новый токен? Старый перестанет работать.')) return;
+      try {
+        const { token } = await api('POST', '/api/system/rotate-token');
+        TOKEN = token;
+        localStorage.setItem('wg_token', token);
+        document.getElementById('newTokenValue').textContent = token;
+        document.getElementById('newTokenDisplay').style.display = 'block';
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    function copyNewToken() {
+      const token = document.getElementById('newTokenValue').textContent;
+      navigator.clipboard.writeText(token);
     }
 
     // ── Whitelist ──
@@ -571,6 +660,7 @@
           ['Отправлено', formatBytes(p.tx)],
           ['Всего трафика', totalGb.toFixed(2) + ' GB'],
           ['Лимит', p.limitGb ? p.limitGb + ' GB' : 'не задан'],
+          ['Создан', formatDate(p.createdAt)],
         ].map(([label, value]) => `
           <div class="info-item">
             <div class="info-label">${label}</div>
@@ -649,6 +739,25 @@
 
     function copyConf() {
       navigator.clipboard.writeText(document.getElementById('wgConf').textContent);
+    }
+
+    async function downloadConf() {
+      try {
+        const res = await fetch(`/api/peers/${currentPeer}/download`, {
+          headers: { 'Authorization': `Bearer ${TOKEN}` },
+        });
+        if (!res.ok) throw new Error('Ошибка загрузки');
+        const text = await res.text();
+        const blob = new Blob([text], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${currentPeer}.conf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        alert(e.message);
+      }
     }
 
     function copySingbox() {
