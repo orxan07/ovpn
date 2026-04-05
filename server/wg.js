@@ -177,6 +177,27 @@ function renameClient(oldName, newName) {
   }
 }
 
+function blockClient(name) {
+  validName(name);
+  const pubPath = path.join(CLIENTS_DIR, `${name}.pub`);
+  if (!fs.existsSync(pubPath)) throw new Error(`Клиент ${name} не найден`);
+  const pubkey = fs.readFileSync(pubPath, 'utf8').trim();
+  // Убираем из runtime — handshake пропадёт, трафик не пойдёт
+  run(`sudo wg set ${WG_INTERFACE} peer ${pubkey} remove`);
+}
+
+function unblockClient(name) {
+  validName(name);
+  const pubPath = path.join(CLIENTS_DIR, `${name}.pub`);
+  if (!fs.existsSync(pubPath)) throw new Error(`Клиент ${name} не найден`);
+  const pubkey = fs.readFileSync(pubPath, 'utf8').trim();
+  const confPath = path.join(CLIENTS_DIR, `${name}.conf`);
+  const conf = fs.readFileSync(confPath, 'utf8');
+  const ip = conf.match(/Address\s*=\s*([\d.]+)/)?.[1];
+  if (!ip) throw new Error('Не удалось прочитать IP клиента');
+  run(`sudo wg set ${WG_INTERFACE} peer ${pubkey} allowed-ips ${ip}/32`);
+}
+
 function deleteClient(name) {
   validName(name);
 
@@ -259,6 +280,8 @@ module.exports = {
   getPeerDetail,
   createClient,
   renameClient,
+  blockClient,
+  unblockClient,
   deleteClient,
   getClientConf,
   getClientQr,
