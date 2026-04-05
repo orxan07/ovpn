@@ -9,8 +9,6 @@ const AUTH_TOKEN = process.env.AUTH_TOKEN || 'changeme';
 
 app.use(express.json());
 app.use(cors());
-
-// Статика (frontend)
 app.use(express.static(path.join(__dirname, '../client')));
 
 // Auth middleware
@@ -22,30 +20,48 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// GET /api/peers — список всех клиентов с live-статусом
+// GET /api/peers
 app.get('/api/peers', (req, res) => {
   try {
-    const peers = wg.getPeersWithStatus();
-    res.json(peers);
+    res.json(wg.getPeersWithStatus());
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// POST /api/peers — создать нового клиента
-// Body: { name: "имя" }
+// GET /api/peers/:name
+app.get('/api/peers/:name', (req, res) => {
+  try {
+    res.json(wg.getPeerDetail(req.params.name));
+  } catch (e) {
+    res.status(404).json({ error: e.message });
+  }
+});
+
+// POST /api/peers — создать клиента
 app.post('/api/peers', (req, res) => {
   try {
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: 'name обязателен' });
-    const result = wg.createClient(name);
-    res.json(result);
+    res.json(wg.createClient(name));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// DELETE /api/peers/:name — удалить клиента
+// PATCH /api/peers/:name — переименовать
+app.patch('/api/peers/:name', (req, res) => {
+  try {
+    const { newName } = req.body;
+    if (!newName) return res.status(400).json({ error: 'newName обязателен' });
+    wg.renameClient(req.params.name, newName);
+    res.json({ ok: true, name: newName });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// DELETE /api/peers/:name
 app.delete('/api/peers/:name', (req, res) => {
   try {
     wg.deleteClient(req.params.name);
@@ -55,21 +71,29 @@ app.delete('/api/peers/:name', (req, res) => {
   }
 });
 
-// GET /api/peers/:name/config — текст .conf
+// GET /api/peers/:name/config
 app.get('/api/peers/:name/config', (req, res) => {
   try {
-    const conf = wg.getClientConf(req.params.name);
-    res.type('text/plain').send(conf);
+    res.type('text/plain').send(wg.getClientConf(req.params.name));
   } catch (e) {
     res.status(404).json({ error: e.message });
   }
 });
 
-// GET /api/peers/:name/qr — QR в base64 PNG
+// GET /api/peers/:name/qr
 app.get('/api/peers/:name/qr', (req, res) => {
   try {
-    const qr = wg.getClientQr(req.params.name);
-    res.json({ qr });
+    res.json({ qr: wg.getClientQr(req.params.name) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/peers/:name/singbox?mode=mobile|wifi
+app.get('/api/peers/:name/singbox', (req, res) => {
+  try {
+    const mode = req.query.mode === 'wifi' ? 'wifi' : 'mobile';
+    res.json(wg.getSingboxConf(req.params.name, mode));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
