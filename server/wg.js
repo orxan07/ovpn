@@ -150,7 +150,7 @@ function buildWgConf(privkey, ip) {
 PrivateKey = ${privkey}
 Address = ${ip}/32
 DNS = 1.1.1.1
-MTU = 1280
+MTU = 1200
 
 [Peer]
 PublicKey = ${SERVER_PUBKEY}
