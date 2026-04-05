@@ -188,6 +188,13 @@
     <!-- Страница: Whitelist -->
     <div id="page-whitelist" style="display:none;">
       <div class="card">
+        <h2>Предустановки</h2>
+        <p class="muted" style="margin-bottom:12px;">Добавляют домены и IP-диапазоны для популярных сервисов. Уже добавленные пропускаются.</p>
+        <div id="presetsList" style="display:flex; flex-wrap:wrap; gap:8px;">
+          <span class="muted">Загрузка...</span>
+        </div>
+      </div>
+      <div class="card">
         <h2>Домены через Outline</h2>
         <div class="form-row" style="margin-bottom:16px;">
           <input type="text" id="newDomain" placeholder="youtube.com" onkeydown="if(event.key==='Enter') addDomain()" style="flex:1;" />
@@ -359,6 +366,7 @@
         loadSystem();
         systemTimer = setInterval(loadSystem, 5000);
       } else if (page === 'whitelist') {
+        loadPresets();
         loadWhitelist();
       }
     }
@@ -574,6 +582,30 @@
     }
 
     // ── Whitelist ──
+
+    async function loadPresets() {
+      try {
+        const presets = await api('GET', '/api/whitelist/presets');
+        if (!presets) return;
+        document.getElementById('presetsList').innerHTML = presets.map(p => `
+          <button class="btn btn-ghost" onclick="applyPreset('${p.name.replace(/'/g, "\\'")}')">
+            ${p.name}
+            <span class="muted" style="margin-left:4px; font-size:11px;">${p.domains}д ${p.ipCidr > 0 ? `+ ${p.ipCidr}ip` : ''}</span>
+          </button>
+        `).join('');
+      } catch (e) {
+        document.getElementById('presetsList').innerHTML = `<span style="color:#f87171">${e.message}</span>`;
+      }
+    }
+
+    async function applyPreset(name) {
+      try {
+        await api('POST', '/api/whitelist/presets/apply', { name });
+        loadWhitelist();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
 
     async function loadWhitelist() {
       try {

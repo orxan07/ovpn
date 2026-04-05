@@ -7,6 +7,7 @@ const wg = require('./wg');
 const system = require('./system');
 const store = require('./store');
 const whitelist = require('./whitelist');
+const { PRESETS } = require('./presets');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -287,6 +288,23 @@ app.post('/api/whitelist', (req, res) => {
     if (!domain) return res.status(400).json({ error: 'domain обязателен' });
     const added = whitelist.addDomain(domain);
     res.json({ ok: true, domain: added });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/whitelist/presets', (req, res) => {
+  res.json(PRESETS.map(p => ({ name: p.name, domains: p.domains.length, ipCidr: p.ipCidr.length })));
+});
+
+app.post('/api/whitelist/presets/apply', (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'name обязателен' });
+    const preset = PRESETS.find(p => p.name === name);
+    if (!preset) return res.status(404).json({ error: 'Пресет не найден' });
+    whitelist.applyPreset(preset);
+    res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

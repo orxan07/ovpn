@@ -26,16 +26,33 @@ function getDomains() {
   const config = readConfig();
   const domains = new Set();
 
-  // Из dns.rules
   for (const rule of config.dns?.rules || []) {
     for (const d of rule.domain_suffix || []) domains.add(d);
   }
-  // Из route.rules
   for (const rule of config.route?.rules || []) {
     for (const d of rule.domain_suffix || []) domains.add(d);
   }
 
   return Array.from(domains).sort();
+}
+
+function getIpCidrs() {
+  const config = readConfig();
+  const cidrs = new Set();
+  for (const rule of config.route?.rules || []) {
+    for (const c of rule.ip_cidr || []) cidrs.add(c);
+  }
+  return Array.from(cidrs).sort();
+}
+
+function addIpCidr(cidr) {
+  const config = readConfig();
+  for (const rule of config.route?.rules || []) {
+    if (rule.ip_cidr && rule.outbound === 'outline') {
+      if (!rule.ip_cidr.includes(cidr)) rule.ip_cidr.push(cidr);
+    }
+  }
+  writeConfig(config);
 }
 
 // Добавляет домен во все нужные места (dns.rules + route.rules)
@@ -92,8 +109,38 @@ function removeDomain(domain) {
   restartSingbox();
 }
 
+// Применяет пресет: добавляет домены + ip_cidr, перезапускает sing-box один раз
+function applyPreset(preset) {
+  const config = readConfig();
+
+  for (const domain of preset.domains || []) {
+    const d = domain.toLowerCase();
+    for (const rule of config.dns?.rules || []) {
+      if (rule.domain_suffix && rule.server === 'dns-proxy') {
+        if (!rule.domain_suffix.includes(d)) rule.domain_suffix.push(d);
+      }
+    }
+    for (const rule of config.route?.rules || []) {
+      if (rule.domain_suffix && rule.outbound === 'outline') {
+        if (!rule.domain_suffix.includes(d)) rule.domain_suffix.push(d);
+      }
+    }
+  }
+
+  for (const cidr of preset.ipCidr || []) {
+    for (const rule of config.route?.rules || []) {
+      if (rule.ip_cidr && rule.outbound === 'outline') {
+        if (!rule.ip_cidr.includes(cidr)) rule.ip_cidr.push(cidr);
+      }
+    }
+  }
+
+  writeConfig(config);
+  restartSingbox();
+}
+
 function restartSingbox() {
   run('sudo systemctl restart sing-box');
 }
 
-module.exports = { getDomains, addDomain, removeDomain };
+module.exports = { getDomains, getIpCidrs, addDomain, removeDomain, addIpCidr, applyPreset };
