@@ -5,21 +5,20 @@ REPO="https://github.com/orxan07/ovpn.git"
 APP_DIR="/opt/wg-admin"
 SERVICE_USER="$(whoami)"
 PORT=8080
+DOMAIN="vpn.rehimli.info"
 
 echo "=== WireGuard Admin Panel: setup ==="
 
-# 1. SSH ключ для деплоя (если нужен приватный репо — пока публичный, пропускаем)
-
-# 2. Зависимости
-echo "[1/5] Устанавливаем Node.js..."
+# 1. Зависимости: Node.js
+echo "[1/6] Устанавливаем Node.js..."
 if ! command -v node &>/dev/null; then
   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
   sudo apt-get install -y nodejs
 fi
 echo "Node: $(node -v), npm: $(npm -v)"
 
-# 3. Клонируем репо
-echo "[2/5] Клонируем репозиторий..."
+# 2. Клонируем репо
+echo "[2/6] Клонируем репозиторий..."
 if [ -d "$APP_DIR" ]; then
   echo "Директория уже существует, делаем git pull..."
   cd "$APP_DIR" && git pull
@@ -28,19 +27,19 @@ else
   sudo chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_DIR"
 fi
 
-# 4. npm install
-echo "[3/5] Устанавливаем зависимости..."
+# 3. npm install
+echo "[3/6] Устанавливаем зависимости..."
 cd "$APP_DIR/server"
 npm install --production
 
-# 5. sudoers
-echo "[4/5] Настраиваем sudoers..."
+# 4. sudoers
+echo "[4/6] Настраиваем sudoers..."
 sudo tee /etc/sudoers.d/wg-admin > /dev/null <<EOF
 $SERVICE_USER ALL=(ALL) NOPASSWD: /usr/bin/wg, /usr/bin/wg-quick, /usr/bin/qrencode, /usr/bin/bash, /bin/bash, /bin/rm, /usr/bin/tee, /bin/cat
 EOF
 sudo chmod 440 /etc/sudoers.d/wg-admin
 
-# 6. .env файл с токеном
+# 5. .env файл с токеном
 if [ ! -f "$APP_DIR/server/.env" ]; then
   TOKEN=$(openssl rand -hex 16)
   echo "AUTH_TOKEN=$TOKEN" | sudo tee "$APP_DIR/server/.env" > /dev/null
@@ -54,8 +53,8 @@ else
   echo "Текущий токен: $(grep AUTH_TOKEN $APP_DIR/server/.env | cut -d= -f2)"
 fi
 
-# 7. systemd сервис
-echo "[5/5] Создаём systemd сервис..."
+# 6. systemd сервис
+echo "[5/6] Создаём systemd сервис..."
 sudo tee /etc/systemd/system/wg-admin.service > /dev/null <<EOF
 [Unit]
 Description=WireGuard Admin Panel
@@ -77,12 +76,37 @@ EOF
 sudo systemctl daemon-reload
 sudo systemctl enable wg-admin
 sudo systemctl restart wg-admin
-sudo systemctl status wg-admin --no-pager
+
+# 7. nginx + certbot
+echo "[6/6] Настраиваем nginx + HTTPS..."
+sudo apt-get install -y nginx certbot python3-certbot-nginx
+
+sudo tee /etc/nginx/sites-available/wg-admin > /dev/null <<EOF
+server {
+    listen 80;
+    server_name $DOMAIN;
+
+    location / {
+        proxy_pass http://127.0.0.1:$PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+    }
+}
+EOF
+
+sudo ln -sf /etc/nginx/sites-available/wg-admin /etc/nginx/sites-enabled/wg-admin
+sudo nginx -t
+sudo systemctl reload nginx
+
+# Получаем сертификат
+sudo certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m admin@rehimli.info --redirect
+
+sudo systemctl reload nginx
 
 echo ""
 echo "=== Готово! ==="
-echo "Панель доступна на http://171.22.75.104:$PORT"
-echo "Но лучше открывать только внутри WireGuard туннеля: http://10.20.0.1:$PORT"
+echo "Панель: https://$DOMAIN"
 echo ""
-echo "Чтобы обновить панель после git push:"
-echo "  cd $APP_DIR && git pull && sudo systemctl restart wg-admin"
+echo "Чтобы обновить после git push:"
+echo "  cd $APP_DIR && bash scripts/deploy.sh"
