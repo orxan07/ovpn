@@ -40,6 +40,8 @@ EOF
 sudo chmod 440 /etc/sudoers.d/wg-admin
 
 sudo mkdir -p /etc/wireguard/clients
+sudo chmod 750 /etc/wireguard
+sudo chown root:"$SERVICE_USER" /etc/wireguard
 sudo chmod 750 /etc/wireguard/clients
 sudo chown root:"$SERVICE_USER" /etc/wireguard/clients
 sudo find /etc/wireguard/clients \( -name "*.conf" -o -name "*.pub" \) -exec sudo chmod 640 {} \;
