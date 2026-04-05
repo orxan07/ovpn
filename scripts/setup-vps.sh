@@ -110,9 +110,39 @@ sudo certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m admin@rehimli
 
 sudo systemctl reload nginx
 
+# 8. Глобальные команды управления
+echo "[+] Устанавливаем глобальные команды..."
+sudo tee /usr/local/bin/app > /dev/null <<'SCRIPT'
+#!/bin/bash
+APP_DIR="/opt/wg-admin"
+case "$1" in
+  start)   sudo systemctl start wg-admin ;;
+  stop)    sudo systemctl stop wg-admin ;;
+  restart) cd "$APP_DIR" && git pull && sudo systemctl restart wg-admin ;;
+  kill)    sudo systemctl stop wg-admin ;;
+  status)  sudo systemctl status wg-admin --no-pager ;;
+  logs)    sudo journalctl -u wg-admin -f --no-pager ;;
+  deploy)  cd "$APP_DIR" && git pull && cd server && npm install --production && sudo systemctl restart wg-admin ;;
+  token)   grep AUTH_TOKEN "$APP_DIR/server/.env" | cut -d= -f2 ;;
+  *)
+    echo "Использование: app <команда>"
+    echo ""
+    echo "  start    — запустить"
+    echo "  stop     — остановить"
+    echo "  restart  — git pull + перезапустить"
+    echo "  kill     — остановить"
+    echo "  status   — статус сервиса"
+    echo "  logs     — логи в реальном времени"
+    echo "  deploy   — git pull + npm install + перезапустить"
+    echo "  token    — показать auth token"
+    ;;
+esac
+SCRIPT
+sudo chmod +x /usr/local/bin/app
+
 echo ""
 echo "=== Готово! ==="
 echo "Панель: https://$DOMAIN"
 echo ""
-echo "Чтобы обновить после git push:"
-echo "  cd $APP_DIR && bash scripts/deploy.sh"
+echo "Команды управления:"
+echo "  app start / stop / restart / status / logs / deploy / token"
