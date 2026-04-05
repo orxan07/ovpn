@@ -15,9 +15,10 @@ function readConfig() {
 
 function writeConfig(config) {
   const json = JSON.stringify(config, null, 2);
-  // Пишем через sudo
-  const escaped = json.replace(/'/g, "'\\''");
-  run(`sudo bash -c 'printf "%s" '${`'${escaped}'`}' > ${SINGBOX_CONF}'`);
+  const tmp = `/tmp/singbox-config-${Date.now()}.json`;
+  require('fs').writeFileSync(tmp, json);
+  run(`sudo cp ${tmp} ${SINGBOX_CONF}`);
+  require('fs').unlinkSync(tmp);
 }
 
 // Собирает уникальный список доменов из всех мест конфига где они есть
