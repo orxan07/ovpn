@@ -23,8 +23,8 @@
     .btn-danger { background: #7f1d1d; color: #fca5a5; }
     .btn-ghost { background: #2d3148; color: #94a3b8; }
     .form-row { display: flex; gap: 10px; align-items: center; }
-    input[type=text] { background: #0f1117; border: 1px solid #2d3148; border-radius: 8px; color: #e2e8f0; padding: 8px 12px; font-size: 14px; outline: none; }
-    input[type=text]:focus { border-color: #3b82f6; }
+    input[type=text], input[type=password] { background: #0f1117; border: 1px solid #2d3148; border-radius: 8px; color: #e2e8f0; padding: 8px 12px; font-size: 14px; outline: none; }
+    input[type=text]:focus, input[type=password]:focus { border-color: #3b82f6; }
     .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
     .modal-overlay.open { display: flex; }
     .modal { background: #1a1d27; border: 1px solid #2d3148; border-radius: 16px; padding: 24px; max-width: 400px; width: 100%; }
@@ -33,37 +33,64 @@
     pre { background: #0f1117; border-radius: 8px; padding: 12px; font-size: 12px; overflow-x: auto; color: #94a3b8; }
     .error { color: #f87171; font-size: 13px; margin-top: 8px; }
     .bytes { color: #64748b; font-size: 12px; }
+
+    /* Login screen */
+    #loginScreen { display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: -24px; }
+    .login-box { background: #1a1d27; border: 1px solid #2d3148; border-radius: 16px; padding: 32px; width: 100%; max-width: 360px; }
+    .login-box h2 { font-size: 18px; margin-bottom: 20px; color: #fff; }
+    .login-box input { width: 100%; margin-bottom: 12px; }
+    .login-box button { width: 100%; }
+    .login-box .error { display: block; margin-top: 8px; }
+    #mainScreen { display: none; }
   </style>
 </head>
 <body>
-  <h1>WireGuard Admin</h1>
 
-  <div class="card">
-    <div class="form-row" style="margin-bottom: 16px;">
-      <input type="text" id="newName" placeholder="Имя нового клиента" />
-      <button class="btn btn-primary" onclick="addPeer()">Добавить</button>
-      <span id="addError" class="error"></span>
+  <!-- Login -->
+  <div id="loginScreen">
+    <div class="login-box">
+      <h2>WireGuard Admin</h2>
+      <input type="password" id="tokenInput" placeholder="Auth token" onkeydown="if(event.key==='Enter') login()" />
+      <button class="btn btn-primary" onclick="login()">Войти</button>
+      <span id="loginError" class="error"></span>
     </div>
   </div>
 
-  <div class="card">
-    <table id="peersTable">
-      <thead>
-        <tr>
-          <th>Имя</th>
-          <th>IP</th>
-          <th>Статус</th>
-          <th>Последний handshake</th>
-          <th>Трафик</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody id="peersBody">
-        <tr><td colspan="6" style="color:#64748b; text-align:center; padding:24px;">Загрузка...</td></tr>
-      </tbody>
-    </table>
+  <!-- Main -->
+  <div id="mainScreen">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+      <h1>WireGuard Admin</h1>
+      <button class="btn btn-ghost" onclick="logout()">Выйти</button>
+    </div>
+
+    <div class="card">
+      <div class="form-row">
+        <input type="text" id="newName" placeholder="Имя нового клиента" />
+        <button class="btn btn-primary" onclick="addPeer()">Добавить</button>
+        <span id="addError" class="error"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr>
+            <th>Имя</th>
+            <th>IP</th>
+            <th>Статус</th>
+            <th>Последний handshake</th>
+            <th>Трафик</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="peersBody">
+          <tr><td colspan="6" style="color:#64748b; text-align:center; padding:24px;">Загрузка...</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
+  <!-- QR / Config modal -->
   <div class="modal-overlay" id="modal">
     <div class="modal">
       <h2 id="modalTitle"></h2>
@@ -77,19 +104,58 @@
   </div>
 
   <script>
-    const TOKEN = localStorage.getItem('wg_token') || prompt('Auth token:');
-    if (TOKEN) localStorage.setItem('wg_token', TOKEN);
-
-    const API = '';
+    let TOKEN = localStorage.getItem('wg_token');
     let modalMode = 'qr';
     let currentPeer = null;
+    let refreshTimer = null;
+
+    // Показываем нужный экран при загрузке
+    if (TOKEN) {
+      showMain();
+    }
+
+    async function login() {
+      const token = document.getElementById('tokenInput').value.trim();
+      const errEl = document.getElementById('loginError');
+      errEl.textContent = '';
+      if (!token) { errEl.textContent = 'Введите токен'; return; }
+
+      // Проверяем токен запросом к API
+      const res = await fetch('/api/peers', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.status === 401) {
+        errEl.textContent = 'Неверный токен';
+        return;
+      }
+      TOKEN = token;
+      localStorage.setItem('wg_token', token);
+      showMain();
+    }
+
+    function logout() {
+      localStorage.removeItem('wg_token');
+      TOKEN = null;
+      clearInterval(refreshTimer);
+      document.getElementById('mainScreen').style.display = 'none';
+      document.getElementById('loginScreen').style.display = 'flex';
+      document.getElementById('tokenInput').value = '';
+    }
+
+    function showMain() {
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('mainScreen').style.display = 'block';
+      loadPeers();
+      refreshTimer = setInterval(loadPeers, 15000);
+    }
 
     async function api(method, path, body) {
-      const res = await fetch(API + path, {
+      const res = await fetch(path, {
         method,
         headers: { 'Authorization': `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
         body: body ? JSON.stringify(body) : undefined,
       });
+      if (res.status === 401) { logout(); return; }
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: res.statusText }));
         throw new Error(err.error || res.statusText);
@@ -115,6 +181,7 @@
     async function loadPeers() {
       try {
         const peers = await api('GET', '/api/peers');
+        if (!peers) return;
         const tbody = document.getElementById('peersBody');
         if (!peers.length) {
           tbody.innerHTML = '<tr><td colspan="6" style="color:#64748b; text-align:center; padding:24px;">Нет клиентов</td></tr>';
@@ -203,13 +270,9 @@
       currentPeer = null;
     }
 
-    // Закрыть по клику вне модального окна
     document.getElementById('modal').addEventListener('click', e => {
       if (e.target === e.currentTarget) closeModal();
     });
-
-    loadPeers();
-    setInterval(loadPeers, 15000); // обновлять каждые 15 секунд
   </script>
 </body>
 </html>
