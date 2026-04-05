@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WireGuard Admin</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; padding: 24px; }
+    h1 { font-size: 20px; font-weight: 600; margin-bottom: 24px; color: #fff; }
+    .card { background: #1a1d27; border: 1px solid #2d3148; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 8px 12px; font-size: 12px; font-weight: 500; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #2d3148; }
+    td { padding: 12px; font-size: 14px; border-bottom: 1px solid #1e2235; }
+    tr:last-child td { border-bottom: none; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 12px; font-weight: 500; }
+    .badge.active { background: #14532d; color: #4ade80; }
+    .badge.inactive { background: #1c1917; color: #78716c; }
+    .btn { padding: 6px 14px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; transition: opacity 0.15s; }
+    .btn:hover { opacity: 0.8; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
+    .btn-primary { background: #3b82f6; color: #fff; }
+    .btn-danger { background: #7f1d1d; color: #fca5a5; }
+    .btn-ghost { background: #2d3148; color: #94a3b8; }
+    .form-row { display: flex; gap: 10px; align-items: center; }
+    input[type=text] { background: #0f1117; border: 1px solid #2d3148; border-radius: 8px; color: #e2e8f0; padding: 8px 12px; font-size: 14px; outline: none; }
+    input[type=text]:focus { border-color: #3b82f6; }
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: #1a1d27; border: 1px solid #2d3148; border-radius: 16px; padding: 24px; max-width: 400px; width: 100%; }
+    .modal h2 { font-size: 16px; margin-bottom: 16px; }
+    .modal img { width: 100%; border-radius: 8px; margin-bottom: 12px; }
+    pre { background: #0f1117; border-radius: 8px; padding: 12px; font-size: 12px; overflow-x: auto; color: #94a3b8; }
+    .error { color: #f87171; font-size: 13px; margin-top: 8px; }
+    .bytes { color: #64748b; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>WireGuard Admin</h1>
+
+  <div class="card">
+    <div class="form-row" style="margin-bottom: 16px;">
+      <input type="text" id="newName" placeholder="Имя нового клиента" />
+      <button class="btn btn-primary" onclick="addPeer()">Добавить</button>
+      <span id="addError" class="error"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <table id="peersTable">
+      <thead>
+        <tr>
+          <th>Имя</th>
+          <th>IP</th>
+          <th>Статус</th>
+          <th>Последний handshake</th>
+          <th>Трафик</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="peersBody">
+        <tr><td colspan="6" style="color:#64748b; text-align:center; padding:24px;">Загрузка...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="modal-overlay" id="modal">
+    <div class="modal">
+      <h2 id="modalTitle"></h2>
+      <img id="modalQr" style="display:none" />
+      <pre id="modalConf" style="display:none"></pre>
+      <div style="display:flex; gap:8px; margin-top:12px;">
+        <button class="btn btn-ghost" id="modalToggle" onclick="toggleModalView()"></button>
+        <button class="btn btn-ghost" onclick="closeModal()">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const TOKEN = localStorage.getItem('wg_token') || prompt('Auth token:');
+    if (TOKEN) localStorage.setItem('wg_token', TOKEN);
+
+    const API = '';
+    let modalMode = 'qr';
+    let currentPeer = null;
+
+    async function api(method, path, body) {
+      const res = await fetch(API + path, {
+        method,
+        headers: { 'Authorization': `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(err.error || res.statusText);
+      }
+      const ct = res.headers.get('content-type');
+      if (ct && ct.includes('application/json')) return res.json();
+      return res.text();
+    }
+
+    function formatBytes(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+    }
+
+    function formatAgo(seconds) {
+      if (!seconds && seconds !== 0) return '—';
+      if (seconds < 60) return `${seconds}с назад`;
+      if (seconds < 3600) return `${Math.floor(seconds / 60)}м назад`;
+      return `${Math.floor(seconds / 3600)}ч назад`;
+    }
+
+    async function loadPeers() {
+      try {
+        const peers = await api('GET', '/api/peers');
+        const tbody = document.getElementById('peersBody');
+        if (!peers.length) {
+          tbody.innerHTML = '<tr><td colspan="6" style="color:#64748b; text-align:center; padding:24px;">Нет клиентов</td></tr>';
+          return;
+        }
+        tbody.innerHTML = peers.map(p => `
+          <tr>
+            <td><strong>${p.name}</strong></td>
+            <td style="font-family:monospace">${p.ip || '—'}</td>
+            <td><span class="badge ${p.active ? 'active' : 'inactive'}">${p.active ? 'активен' : 'неактивен'}</span></td>
+            <td>${formatAgo(p.lastHandshakeAgo)}</td>
+            <td class="bytes">↓ ${formatBytes(p.rx)} / ↑ ${formatBytes(p.tx)}</td>
+            <td style="display:flex; gap:6px; justify-content:flex-end">
+              <button class="btn btn-sm btn-ghost" onclick="showQr('${p.name}')">QR</button>
+              <button class="btn btn-sm btn-danger" onclick="deletePeer('${p.name}')">Удалить</button>
+            </td>
+          </tr>
+        `).join('');
+      } catch (e) {
+        document.getElementById('peersBody').innerHTML = `<tr><td colspan="6" style="color:#f87171; text-align:center">${e.message}</td></tr>`;
+      }
+    }
+
+    async function addPeer() {
+      const name = document.getElementById('newName').value.trim();
+      const errEl = document.getElementById('addError');
+      errEl.textContent = '';
+      if (!name) { errEl.textContent = 'Введите имя'; return; }
+      try {
+        await api('POST', '/api/peers', { name });
+        document.getElementById('newName').value = '';
+        await loadPeers();
+        showQr(name);
+      } catch (e) {
+        errEl.textContent = e.message;
+      }
+    }
+
+    async function deletePeer(name) {
+      if (!confirm(`Удалить клиента ${name}?`)) return;
+      try {
+        await api('DELETE', `/api/peers/${name}`);
+        loadPeers();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function showQr(name) {
+      currentPeer = name;
+      modalMode = 'qr';
+      document.getElementById('modalTitle').textContent = name;
+      document.getElementById('modalToggle').textContent = 'Показать конфиг';
+      document.getElementById('modalQr').style.display = 'block';
+      document.getElementById('modalConf').style.display = 'none';
+      document.getElementById('modal').classList.add('open');
+
+      try {
+        const { qr } = await api('GET', `/api/peers/${name}/qr`);
+        document.getElementById('modalQr').src = `data:image/png;base64,${qr}`;
+      } catch (e) {
+        document.getElementById('modalQr').style.display = 'none';
+        document.getElementById('modalConf').style.display = 'block';
+        document.getElementById('modalConf').textContent = e.message;
+      }
+    }
+
+    async function toggleModalView() {
+      if (modalMode === 'qr') {
+        modalMode = 'conf';
+        document.getElementById('modalToggle').textContent = 'Показать QR';
+        document.getElementById('modalQr').style.display = 'none';
+        document.getElementById('modalConf').style.display = 'block';
+        const conf = await api('GET', `/api/peers/${currentPeer}/config`);
+        document.getElementById('modalConf').textContent = conf;
+      } else {
+        modalMode = 'qr';
+        document.getElementById('modalToggle').textContent = 'Показать конфиг';
+        document.getElementById('modalQr').style.display = 'block';
+        document.getElementById('modalConf').style.display = 'none';
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('modal').classList.remove('open');
+      currentPeer = null;
+    }
+
+    // Закрыть по клику вне модального окна
+    document.getElementById('modal').addEventListener('click', e => {
+      if (e.target === e.currentTarget) closeModal();
+    });
+
+    loadPeers();
+    setInterval(loadPeers, 15000); // обновлять каждые 15 секунд
+  </script>
+</body>
+</html>
