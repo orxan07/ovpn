@@ -255,11 +255,18 @@
     </div>
 
     <div id="tab-singbox" class="tab-content">
+      <div class="card" style="margin-bottom:16px;">
+        <h2>Remote Profile URL</h2>
+        <p class="muted" style="margin-bottom:12px;">Вставь этот URL в sing-box → Profiles → New Profile → Remote. Конфиг будет обновляться автоматически.</p>
+        <div id="remoteProfileSection">
+          <button class="btn btn-primary" onclick="generateConfigToken()">Создать ссылку</button>
+        </div>
+      </div>
       <div class="singbox-mode-tabs">
         <button class="btn btn-primary" id="sbMobileBtn" onclick="loadSingbox('mobile')">Мобильная сеть</button>
         <button class="btn btn-ghost" id="sbWifiBtn" onclick="loadSingbox('wifi')">Wi-Fi</button>
       </div>
-      <button class="btn btn-ghost" style="margin-bottom:12px;" onclick="copySingbox()">Скопировать</button>
+      <button class="btn btn-ghost" style="margin-bottom:12px;" onclick="copySingbox()">Скопировать JSON</button>
       <pre id="singboxConf"></pre>
     </div>
 
@@ -684,7 +691,7 @@
       document.getElementById(`tab-${tab}`).classList.add('active');
 
       if (tab === 'wg') await loadWgTab();
-      if (tab === 'singbox') await loadSingbox('mobile');
+      if (tab === 'singbox') { loadRemoteProfileSection(); await loadSingbox('mobile'); }
       if (tab === 'devices') await loadDevices();
     }
 
@@ -762,6 +769,54 @@
 
     function copySingbox() {
       navigator.clipboard.writeText(document.getElementById('singboxConf').textContent);
+    }
+
+    function renderRemoteProfile(token) {
+      const base = `${location.origin}/config/${token}`;
+      const mobileUrl = `${base}?mode=mobile`;
+      const wifiUrl = `${base}?mode=wifi`;
+      document.getElementById('remoteProfileSection').innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div>
+            <div class="muted" style="margin-bottom:4px;">Мобильная сеть:</div>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <code style="background:#0f1117; padding:6px 10px; border-radius:6px; font-size:12px; flex:1; word-break:break-all;">${mobileUrl}</code>
+              <button class="btn btn-sm btn-ghost" onclick="navigator.clipboard.writeText('${mobileUrl}')">Копировать</button>
+            </div>
+          </div>
+          <div>
+            <div class="muted" style="margin-bottom:4px;">Wi-Fi:</div>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <code style="background:#0f1117; padding:6px 10px; border-radius:6px; font-size:12px; flex:1; word-break:break-all;">${wifiUrl}</code>
+              <button class="btn btn-sm btn-ghost" onclick="navigator.clipboard.writeText('${wifiUrl}')">Копировать</button>
+            </div>
+          </div>
+          <div>
+            <button class="btn btn-sm btn-ghost" onclick="generateConfigToken()">Пересоздать ссылки</button>
+            <span class="muted" style="margin-left:8px;">старые перестанут работать</span>
+          </div>
+        </div>
+      `;
+    }
+
+    async function loadRemoteProfileSection() {
+      const s = await api('GET', `/api/peers/${currentPeer}`).catch(() => null);
+      if (!s) return;
+      if (s.configToken) {
+        renderRemoteProfile(s.configToken);
+      } else {
+        document.getElementById('remoteProfileSection').innerHTML =
+          `<button class="btn btn-primary" onclick="generateConfigToken()">Создать ссылку</button>`;
+      }
+    }
+
+    async function generateConfigToken() {
+      try {
+        const { token } = await api('POST', `/api/peers/${currentPeer}/config-token`);
+        renderRemoteProfile(token);
+      } catch (e) {
+        alert(e.message);
+      }
     }
 
     // ── Rename ──

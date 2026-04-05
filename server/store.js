@@ -24,8 +24,25 @@ function save(data) {
 // Возвращает данные клиента (создаёт если нет)
 function getClient(name) {
   const store = load();
-  if (!store[name]) store[name] = { endpoints: [], limitGb: null, blocked: false, note: '', createdAt: null };
+  if (!store[name]) store[name] = { endpoints: [], limitGb: null, blocked: false, note: '', createdAt: null, configToken: null };
   return store[name];
+}
+
+function generateConfigToken(name) {
+  const token = require('crypto').randomBytes(16).toString('hex');
+  const client = getClient(name);
+  client.configToken = token;
+  saveClient(name, client);
+  return token;
+}
+
+// Найти клиента по configToken
+function findByConfigToken(token) {
+  const store = load();
+  for (const [name, data] of Object.entries(store)) {
+    if (data.configToken === token) return name;
+  }
+  return null;
 }
 
 function setCreatedAt(name, ts) {
@@ -95,4 +112,4 @@ function renameClient(oldName, newName) {
   }
 }
 
-module.exports = { getClient, saveClient, trackEndpoint, setBlocked, setLimit, setNote, setCreatedAt, getAll, renameClient };
+module.exports = { getClient, saveClient, trackEndpoint, setBlocked, setLimit, setNote, setCreatedAt, getAll, renameClient, generateConfigToken, findByConfigToken };

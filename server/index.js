@@ -27,6 +27,18 @@ app.use(express.json());
 app.use(cors());
 app.use(express.static(path.join(__dirname, '../client')));
 
+// Публичный endpoint для remote profile (без авторизации, защищён токеном в URL)
+app.get('/config/:token', (req, res) => {
+  const name = store.findByConfigToken(req.params.token);
+  if (!name) return res.status(404).json({ error: 'Not found' });
+  const mode = req.query.mode === 'wifi' ? 'wifi' : 'mobile';
+  try {
+    res.json(wg.getSingboxConf(name, mode));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // Auth middleware
 app.use('/api', (req, res, next) => {
   if (req.headers['authorization'] !== `Bearer ${getToken()}`) {
@@ -145,6 +157,16 @@ app.get('/api/peers/:name/download', (req, res) => {
 app.get('/api/peers/:name/qr', (req, res) => {
   try {
     res.json({ qr: wg.getClientQr(req.params.name) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Получить или сгенерировать config token для remote profile
+app.post('/api/peers/:name/config-token', (req, res) => {
+  try {
+    const token = store.generateConfigToken(req.params.name);
+    res.json({ token });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
