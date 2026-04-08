@@ -13,6 +13,10 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 const ENV_FILE = path.join(__dirname, '.env');
 
+function getSingboxMode(mode) {
+  return ['mobile', 'wifi', 'beta'].includes(mode) ? mode : 'mobile';
+}
+
 // Читаем токен из .env в runtime (чтобы перегенерация работала без перезапуска)
 function getToken() {
   try {
@@ -32,7 +36,7 @@ app.use(express.static(path.join(__dirname, '../client')));
 app.get('/config/:token', (req, res) => {
   const name = store.findByConfigToken(req.params.token);
   if (!name) return res.status(404).json({ error: 'Not found' });
-  const mode = req.query.mode === 'wifi' ? 'wifi' : 'mobile';
+  const mode = getSingboxMode(req.query.mode);
   try {
     res.json(wg.getSingboxConf(name, mode));
   } catch (e) {
@@ -175,7 +179,7 @@ app.post('/api/peers/:name/config-token', (req, res) => {
 
 app.get('/api/peers/:name/singbox', (req, res) => {
   try {
-    const mode = req.query.mode === 'wifi' ? 'wifi' : 'mobile';
+    const mode = getSingboxMode(req.query.mode);
     res.json(wg.getSingboxConf(req.params.name, mode));
   } catch (e) {
     res.status(500).json({ error: e.message });

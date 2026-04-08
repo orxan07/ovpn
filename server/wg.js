@@ -8,6 +8,7 @@ const WG_INTERFACE = 'wg0';
 const SUBNET = '10.20.0';
 const SERVER_PUBKEY = 'Wq9Db2KQ2EQtIxTSaKT1cel6T0dSLX+cQ5k1JHHAcCE=';
 const SERVER_ENDPOINT = '171.22.75.104:443';
+const SERVER_HOST = SERVER_ENDPOINT.split(':')[0];
 
 function run(cmd) {
   return execSync(cmd, { encoding: 'utf8' }).trim();
@@ -252,8 +253,25 @@ function getSingboxConf(name, mode) {
     stack: 'system',
   };
 
+  const endpointRoute = `${SERVER_HOST}/32`;
   if (mode === 'wifi') {
-    inbound.route_exclude_address = ['171.22.75.104/32'];
+    inbound.route_exclude_address = [endpointRoute];
+  }
+
+  if (mode === 'beta') {
+    // Экспериментальный профиль: оставляем прямой доступ к VPN endpoint
+    // и локальным сетям, чтобы снизить шанс потери сети при смене аплинка.
+    inbound.strict_route = false;
+    inbound.route_exclude_address = [
+      endpointRoute,
+      '10.0.0.0/8',
+      '100.64.0.0/10',
+      '169.254.0.0/16',
+      '172.16.0.0/12',
+      '192.168.0.0/16',
+      'fc00::/7',
+      'fe80::/10',
+    ];
   }
 
   return {

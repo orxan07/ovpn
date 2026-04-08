@@ -272,6 +272,7 @@
       <div class="singbox-mode-tabs">
         <button class="btn btn-primary" id="sbMobileBtn" onclick="loadSingbox('mobile')">Мобильная сеть</button>
         <button class="btn btn-ghost" id="sbWifiBtn" onclick="loadSingbox('wifi')">Wi-Fi</button>
+        <button class="btn btn-ghost" id="sbBetaBtn" onclick="loadSingbox('beta')">Beta</button>
       </div>
       <button class="btn btn-ghost" style="margin-bottom:12px;" onclick="copySingbox()">Скопировать JSON</button>
       <pre id="singboxConf"></pre>
@@ -745,6 +746,7 @@
       singboxMode = mode;
       document.getElementById('sbMobileBtn').className = `btn ${mode === 'mobile' ? 'btn-primary' : 'btn-ghost'}`;
       document.getElementById('sbWifiBtn').className = `btn ${mode === 'wifi' ? 'btn-primary' : 'btn-ghost'}`;
+      document.getElementById('sbBetaBtn').className = `btn ${mode === 'beta' ? 'btn-primary' : 'btn-ghost'}`;
       document.getElementById('singboxConf').textContent = 'Загрузка...';
       try {
         const conf = await api('GET', `/api/peers/${currentPeer}/singbox?mode=${mode}`);
@@ -807,6 +809,7 @@
       const base = `${location.origin}/config/${token}`;
       const mobileUrl = `${base}?mode=mobile`;
       const wifiUrl = `${base}?mode=wifi`;
+      const betaUrl = `${base}?mode=beta`;
       document.getElementById('remoteProfileSection').innerHTML = `
         <div style="display:flex; flex-direction:column; gap:10px;">
           <div>
@@ -821,6 +824,13 @@
             <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
               <code style="background:#0f1117; padding:6px 10px; border-radius:6px; font-size:12px; flex:1; word-break:break-all;">${wifiUrl}</code>
               <button class="btn btn-sm btn-ghost" onclick="navigator.clipboard.writeText('${wifiUrl}')">Копировать</button>
+            </div>
+          </div>
+          <div>
+            <div class="muted" style="margin-bottom:4px;">Beta:</div>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <code style="background:#0f1117; padding:6px 10px; border-radius:6px; font-size:12px; flex:1; word-break:break-all;">${betaUrl}</code>
+              <button class="btn btn-sm btn-ghost" onclick="navigator.clipboard.writeText('${betaUrl}')">Копировать</button>
             </div>
           </div>
           <div>
