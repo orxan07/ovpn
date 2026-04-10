@@ -306,10 +306,8 @@ function getSingboxConf(name, mode) {
     result.dns = {
       servers: [
         {
-          type: 'udp',
           tag: 'wg-dns',
-          server: '1.1.1.1',
-          server_port: 53,
+          address: '1.1.1.1',
           detour: 'wg-out',
         },
       ],
