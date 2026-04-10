@@ -268,7 +268,7 @@ function getSingboxConf(name, mode) {
     inbound.route_exclude_address = [endpointRoute];
   }
 
-  if (mode === 'beta' || mode === 'mac') {
+  if (mode === 'beta') {
     // Экспериментальный профиль: оставляем прямой доступ к VPN endpoint
     // и локальным сетям, чтобы снизить шанс потери сети при смене аплинка.
     inbound.strict_route = false;
@@ -279,6 +279,7 @@ function getSingboxConf(name, mode) {
   }
 
   if (mode === 'mac') {
+    inbound.route_exclude_address = [endpointRoute];
     route.auto_detect_interface = true;
   }
 
