@@ -9,6 +9,15 @@ const SUBNET = '10.20.0';
 const SERVER_PUBKEY = 'Wq9Db2KQ2EQtIxTSaKT1cel6T0dSLX+cQ5k1JHHAcCE=';
 const SERVER_ENDPOINT = '171.22.75.104:443';
 const SERVER_HOST = SERVER_ENDPOINT.split(':')[0];
+const PRIVATE_BYPASS_ROUTES = [
+  '10.0.0.0/8',
+  '100.64.0.0/10',
+  '169.254.0.0/16',
+  '172.16.0.0/12',
+  '192.168.0.0/16',
+  'fc00::/7',
+  'fe80::/10',
+];
 
 function run(cmd) {
   return execSync(cmd, { encoding: 'utf8' }).trim();
@@ -254,27 +263,26 @@ function getSingboxConf(name, mode) {
   };
 
   const endpointRoute = `${SERVER_HOST}/32`;
+  const route = { final: 'wg-out' };
   if (mode === 'wifi') {
     inbound.route_exclude_address = [endpointRoute];
   }
 
-  if (mode === 'beta') {
+  if (mode === 'beta' || mode === 'mac') {
     // Экспериментальный профиль: оставляем прямой доступ к VPN endpoint
     // и локальным сетям, чтобы снизить шанс потери сети при смене аплинка.
     inbound.strict_route = false;
     inbound.route_exclude_address = [
       endpointRoute,
-      '10.0.0.0/8',
-      '100.64.0.0/10',
-      '169.254.0.0/16',
-      '172.16.0.0/12',
-      '192.168.0.0/16',
-      'fc00::/7',
-      'fe80::/10',
+      ...PRIVATE_BYPASS_ROUTES,
     ];
   }
 
-  return {
+  if (mode === 'mac') {
+    route.auto_detect_interface = true;
+  }
+
+  const result = {
     log: { level: 'info' },
     inbounds: [inbound],
     outbounds: [
@@ -289,8 +297,28 @@ function getSingboxConf(name, mode) {
         mtu,
       },
     ],
-    route: { final: 'wg-out' },
+    route,
   };
+
+  if (mode === 'mac') {
+    // На macOS явно отправляем DNS через туннель, чтобы не зависеть от DNS
+    // текущей Wi-Fi сети и не терять доступ к доменам из серверного whitelist.
+    result.dns = {
+      servers: [
+        {
+          type: 'udp',
+          tag: 'wg-dns',
+          server: '1.1.1.1',
+          server_port: 53,
+          detour: 'wg-out',
+        },
+      ],
+      final: 'wg-dns',
+      strategy: 'prefer_ipv4',
+    };
+  }
+
+  return result;
 }
 
 module.exports = {

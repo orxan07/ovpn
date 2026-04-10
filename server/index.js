@@ -14,7 +14,7 @@ const PORT = process.env.PORT || 8080;
 const ENV_FILE = path.join(__dirname, '.env');
 
 function getSingboxMode(mode) {
-  return ['mobile', 'wifi', 'beta'].includes(mode) ? mode : 'mobile';
+  return ['mobile', 'wifi', 'beta', 'mac'].includes(mode) ? mode : 'mobile';
 }
 
 // Читаем токен из .env в runtime (чтобы перегенерация работала без перезапуска)
