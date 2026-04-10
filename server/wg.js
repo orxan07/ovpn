@@ -300,22 +300,6 @@ function getSingboxConf(name, mode) {
     route,
   };
 
-  if (mode === 'mac') {
-    // На macOS явно отправляем DNS через туннель, чтобы не зависеть от DNS
-    // текущей Wi-Fi сети и не терять доступ к доменам из серверного whitelist.
-    result.dns = {
-      servers: [
-        {
-          tag: 'wg-dns',
-          address: '1.1.1.1',
-          detour: 'wg-out',
-        },
-      ],
-      final: 'wg-dns',
-      strategy: 'prefer_ipv4',
-    };
-  }
-
   return result;
 }
 
