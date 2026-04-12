@@ -263,43 +263,69 @@ function keeneticExec(host, port, commands, login = 'admin', password = '') {
     let output = '';
     let cmdIndex = 0;
     let authenticated = false;
-    let sentPassword = false;
+    let loginSent = false;
+    let passwordSent = false;
     const allCmds = [...commands, 'exit'];
     const timeout = setTimeout(() => {
       client.destroy();
-      resolve(output);
-    }, 12000);
+      resolve(cleanTelnet(output));
+    }, 15000);
 
     const client = net.createConnection({ host, port: port || 23 }, () => {});
 
     client.on('data', (data) => {
-      const text = data.toString();
+      // Strip telnet IAC negotiation bytes (0xFF ...)
+      const buf = Buffer.from(data);
+      const clean = [];
+      for (let i = 0; i < buf.length; i++) {
+        if (buf[i] === 0xFF && i + 1 < buf.length) {
+          const cmd = buf[i + 1];
+          if (cmd >= 0xFB && cmd <= 0xFE && i + 2 < buf.length) {
+            i += 2; continue;
+          } else if (cmd === 0xFA) {
+            while (i < buf.length && !(buf[i] === 0xFF && buf[i + 1] === 0xF0)) i++;
+            i++; continue;
+          } else { i++; continue; }
+        }
+        clean.push(buf[i]);
+      }
+      const text = Buffer.from(clean).toString('utf8');
       output += text;
 
-      if (!authenticated && text.includes('Login:')) {
-        client.write(login + '\n');
+      if (!loginSent && output.includes('Login:')) {
+        loginSent = true;
+        setTimeout(() => client.write(login + '\r\n'), 200);
         return;
       }
-      if (!authenticated && text.includes('Password:')) {
-        client.write(password + '\n');
-        sentPassword = true;
+      if (loginSent && !passwordSent && text.includes('Password:')) {
+        passwordSent = true;
+        setTimeout(() => client.write(password + '\r\n'), 200);
         return;
       }
-      if (!authenticated && (text.includes('(config)>') || text.includes('>'))) {
+      if (!authenticated && passwordSent && text.includes('>')) {
         authenticated = true;
       }
-      if (authenticated && (text.includes('(config)>') || text.trimEnd().endsWith('>'))) {
+      if (authenticated && text.includes('>')) {
         if (cmdIndex < allCmds.length) {
-          client.write(allCmds[cmdIndex] + '\n');
+          const cmd = allCmds[cmdIndex];
           cmdIndex++;
+          setTimeout(() => client.write(cmd + '\r\n'), 100);
         }
       }
     });
 
-    client.on('end', () => { clearTimeout(timeout); resolve(output); });
+    client.on('end', () => { clearTimeout(timeout); resolve(cleanTelnet(output)); });
     client.on('error', (e) => { clearTimeout(timeout); reject(e); });
-    client.on('close', () => { clearTimeout(timeout); resolve(output); });
+    client.on('close', () => { clearTimeout(timeout); resolve(cleanTelnet(output)); });
   });
+}
+
+function cleanTelnet(text) {
+  return text
+    .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
+    .replace(/\r/g, '')
+    .replace(/[^\x20-\x7E\n]/g, '')
+    .trim();
 }
 
 module.exports = {
