@@ -182,6 +182,34 @@ PersistentKeepalive = 25
 `;
 }
 
+function buildKeeneticConf(privkey, ip) {
+  return `[Interface]
+PrivateKey = ${privkey}
+Address = ${ip}/32
+DNS = 10.20.0.1
+MTU = 1280
+
+[Peer]
+PublicKey = ${SERVER_PUBKEY}
+Endpoint = ${SERVER_ENDPOINT}
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25
+`;
+}
+
+function getKeeneticConf(name) {
+  validName(name);
+  const confPath = path.join(CLIENTS_DIR, `${name}.conf`);
+  if (!fs.existsSync(confPath)) throw new Error(`Клиент ${name} не найден`);
+
+  const conf = fs.readFileSync(confPath, 'utf8');
+  const privkey = conf.match(/PrivateKey\s*=\s*(.+)/)?.[1]?.trim();
+  const ip = conf.match(/Address\s*=\s*([\d.]+)/)?.[1]?.trim();
+  if (!privkey || !ip) throw new Error('Не удалось прочитать конфиг клиента');
+
+  return buildKeeneticConf(privkey, ip);
+}
+
 function renameClient(oldName, newName) {
   validName(oldName);
   validName(newName);
@@ -360,4 +388,5 @@ module.exports = {
   getClientConf,
   getClientQr,
   getSingboxConf,
+  getKeeneticConf,
 };

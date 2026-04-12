@@ -405,6 +405,15 @@
         </div>
         <pre id="wgConf"></pre>
       </div>
+      <div class="card" style="margin-top:20px;">
+        <h2>Keenetic Router</h2>
+        <p class="muted" style="margin-bottom:12px;">Конфиг для импорта в Keenetic. DNS направлен на VPS (10.20.0.1), MTU 1280. Скачай файл → в Keenetic: Другие подключения → WireGuard → Загрузить из файла.</p>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+          <button class="btn btn-primary" onclick="downloadKeenetic()">Скачать .conf для Keenetic</button>
+          <button class="btn btn-ghost" onclick="showKeeneticConf()">Показать конфиг</button>
+        </div>
+        <pre id="keeneticConf" style="display:none;"></pre>
+      </div>
     </div>
 
     <div id="tab-singbox" class="tab-content">
@@ -1105,6 +1114,41 @@
       try {
         await api('PATCH', `/api/peers/${currentPeer}`, { note });
         await refreshDetail();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    // ── Keenetic ──
+
+    async function downloadKeenetic() {
+      try {
+        const res = await fetch(`/api/peers/${currentPeer}/keenetic`, {
+          headers: { 'Authorization': `Bearer ${TOKEN}` },
+        });
+        if (!res.ok) throw new Error('Ошибка загрузки');
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${currentPeer}-keenetic.conf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    async function showKeeneticConf() {
+      const el = document.getElementById('keeneticConf');
+      if (el.style.display !== 'none') { el.style.display = 'none'; return; }
+      try {
+        const res = await fetch(`/api/peers/${currentPeer}/keenetic`, {
+          headers: { 'Authorization': `Bearer ${TOKEN}` },
+        });
+        if (!res.ok) throw new Error('Ошибка');
+        el.textContent = await res.text();
+        el.style.display = 'block';
       } catch (e) {
         alert(e.message);
       }

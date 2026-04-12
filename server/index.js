@@ -178,6 +178,16 @@ app.post('/api/peers/:name/config-token', (req, res) => {
   }
 });
 
+app.get('/api/peers/:name/keenetic', (req, res) => {
+  try {
+    const conf = wg.getKeeneticConf(req.params.name);
+    res.setHeader('Content-Disposition', `attachment; filename="${req.params.name}-keenetic.conf"`);
+    res.type('text/plain').send(conf);
+  } catch (e) {
+    res.status(404).json({ error: e.message });
+  }
+});
+
 app.get('/api/peers/:name/singbox', (req, res) => {
   try {
     const mode = getSingboxMode(req.query.mode);
