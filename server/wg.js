@@ -120,6 +120,18 @@ function getPeerDetail(name) {
 function nextFreeIp() {
   const clients = getClients();
   const used = new Set(clients.map(c => c.ip).filter(Boolean));
+
+  try {
+    const wgConf = fs.readFileSync(WG_CONF, 'utf8');
+    const matches = wgConf.matchAll(/AllowedIPs\s*=\s*([^\n]+)/g);
+    for (const m of matches) {
+      for (const cidr of m[1].split(',')) {
+        const ip = cidr.trim().split('/')[0];
+        if (ip.startsWith(SUBNET + '.')) used.add(ip);
+      }
+    }
+  } catch {}
+
   for (let i = 2; i < 254; i++) {
     const ip = `${SUBNET}.${i}`;
     if (!used.has(ip) && ip !== `${SUBNET}.1`) return ip;
@@ -208,6 +220,38 @@ function unblockClient(name) {
   run(`sudo wg set ${WG_INTERFACE} peer ${pubkey} allowed-ips ${ip}/32`);
 }
 
+function removePeerFromWgConf(pubkey) {
+  const raw = fs.readFileSync(WG_CONF, 'utf8');
+  const lines = raw.split('\n');
+  const result = [];
+  let skip = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (trimmed === '[Peer]') {
+      const block = [];
+      let j = i;
+      let blockPubkey = null;
+      while (j < lines.length) {
+        const lt = lines[j].trim();
+        if (j > i && (lt === '[Peer]' || lt === '[Interface]')) break;
+        block.push(lines[j]);
+        const pkMatch = lt.match(/^PublicKey\s*=\s*(.+)/);
+        if (pkMatch) blockPubkey = pkMatch[1].trim();
+        j++;
+      }
+      if (blockPubkey === pubkey) {
+        i = j - 1;
+        continue;
+      }
+    }
+    result.push(lines[i]);
+  }
+
+  const cleaned = result.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
+  run(`sudo bash -c 'cat > ${WG_CONF} << "WGEOF"\n${cleaned}WGEOF'`);
+}
+
 function deleteClient(name) {
   validName(name);
 
@@ -217,6 +261,7 @@ function deleteClient(name) {
   const pubkey = fs.readFileSync(pubPath, 'utf8').trim();
 
   run(`sudo wg set ${WG_INTERFACE} peer ${pubkey} remove`);
+  removePeerFromWgConf(pubkey);
 
   for (const ext of ['.key', '.pub', '.conf']) {
     const f = path.join(CLIENTS_DIR, `${name}${ext}`);
