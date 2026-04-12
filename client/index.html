@@ -98,6 +98,25 @@
     /* Services */
     .service-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #0f1117; border-radius: 8px; }
     .service-name { font-size: 14px; font-weight: 500; }
+
+    /* Diagnostics */
+    .diag-tools-grid { display: flex; flex-direction: column; gap: 20px; }
+    .diag-tool { background: #0f1117; border-radius: 10px; padding: 16px; }
+    .diag-tool-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .diag-tool-icon { font-size: 18px; }
+    .diag-tool-title { font-size: 15px; font-weight: 600; color: #fff; }
+    .diag-output { max-height: 320px; overflow: auto; font-size: 11px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; margin-top: 8px; }
+    .diag-quick-btns { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+    .diag-peer-card { background: #0f1117; border-radius: 10px; padding: 14px 16px; position: relative; }
+    .diag-peer-card.peer-active { border-left: 3px solid #4ade80; }
+    .diag-peer-card.peer-inactive { border-left: 3px solid #78716c; }
+    .diag-peer-name { font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 6px; }
+    .diag-peer-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; }
+    .diag-peer-label { color: #64748b; }
+    .diag-peer-value { color: #e2e8f0; font-family: monospace; }
+    .diag-peer-actions { display: flex; gap: 6px; margin-top: 8px; }
+    .diag-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #2d3148; border-top-color: #3b82f6; border-radius: 50%; animation: diagSpin 0.6s linear infinite; vertical-align: middle; margin-right: 6px; }
+    @keyframes diagSpin { to { transform: rotate(360deg); } }
     .service-status { display: flex; align-items: center; gap: 8px; }
     .dot { width: 8px; height: 8px; border-radius: 50%; }
     .dot-green { background: #4ade80; }
@@ -128,6 +147,7 @@
       <button class="nav-btn active" onclick="showPage('peers')">Клиенты</button>
       <button class="nav-btn" onclick="showPage('system')">Система</button>
       <button class="nav-btn" onclick="showPage('whitelist')">Whitelist</button>
+      <button class="nav-btn" onclick="showPage('diagnostics')">Диагностика</button>
     </div>
 
     <!-- Страница: Клиенты -->
@@ -203,6 +223,122 @@
         </div>
         <div id="domainList"></div>
       </div>
+    </div>
+
+    <!-- Страница: Диагностика -->
+    <div id="page-diagnostics" style="display:none;">
+
+      <!-- Статус пиров -->
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h2 style="margin-bottom:0;">Пиры WireGuard</h2>
+          <button class="btn btn-ghost btn-sm" onclick="loadDiagPeers()">Обновить</button>
+        </div>
+        <div id="diagPeersGrid" class="stats-grid">
+          <div class="stat-item"><div class="stat-label">Загрузка...</div></div>
+        </div>
+      </div>
+
+      <!-- Инструменты -->
+      <div class="card">
+        <h2>Инструменты</h2>
+        <div class="diag-tools-grid">
+
+          <!-- Ping -->
+          <div class="diag-tool">
+            <div class="diag-tool-header">
+              <span class="diag-tool-icon">📡</span>
+              <span class="diag-tool-title">Ping</span>
+            </div>
+            <div class="form-row" style="margin-bottom:8px;">
+              <input type="text" id="diagPingTarget" placeholder="10.20.0.6 или 8.8.8.8" style="flex:1;" />
+              <input type="number" id="diagPingCount" placeholder="4" min="1" max="10" style="width:60px;" />
+              <button class="btn btn-primary btn-sm" onclick="runPing()">Ping</button>
+            </div>
+            <div class="diag-quick-btns" id="diagPingQuick"></div>
+            <pre id="diagPingResult" class="diag-output" style="display:none;"></pre>
+          </div>
+
+          <!-- DNS -->
+          <div class="diag-tool">
+            <div class="diag-tool-header">
+              <span class="diag-tool-icon">🔍</span>
+              <span class="diag-tool-title">DNS Resolve</span>
+            </div>
+            <div class="form-row" style="margin-bottom:8px;">
+              <input type="text" id="diagDnsDomain" placeholder="youtube.com" style="flex:1;" />
+              <button class="btn btn-primary btn-sm" onclick="runDns()">Resolve</button>
+            </div>
+            <pre id="diagDnsResult" class="diag-output" style="display:none;"></pre>
+          </div>
+
+          <!-- Curl -->
+          <div class="diag-tool">
+            <div class="diag-tool-header">
+              <span class="diag-tool-icon">🌐</span>
+              <span class="diag-tool-title">HTTP Test</span>
+            </div>
+            <div class="form-row" style="margin-bottom:8px;">
+              <input type="text" id="diagCurlUrl" placeholder="https://youtube.com" style="flex:1;" />
+              <button class="btn btn-primary btn-sm" onclick="runCurl()">Test</button>
+            </div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+              <button class="btn btn-ghost btn-sm" onclick="document.getElementById('diagCurlUrl').value='https://youtube.com'; runCurl()">youtube.com</button>
+              <button class="btn btn-ghost btn-sm" onclick="document.getElementById('diagCurlUrl').value='https://t.me'; runCurl()">t.me</button>
+              <button class="btn btn-ghost btn-sm" onclick="document.getElementById('diagCurlUrl').value='https://ifconfig.me'; runCurl()">ifconfig.me</button>
+              <button class="btn btn-ghost btn-sm" onclick="document.getElementById('diagCurlUrl').value='https://ya.ru'; runCurl()">ya.ru</button>
+            </div>
+            <pre id="diagCurlResult" class="diag-output" style="display:none;"></pre>
+          </div>
+
+          <!-- tcpdump -->
+          <div class="diag-tool">
+            <div class="diag-tool-header">
+              <span class="diag-tool-icon">📦</span>
+              <span class="diag-tool-title">Захват пакетов (tcpdump)</span>
+            </div>
+            <div class="form-row" style="margin-bottom:8px;">
+              <select id="diagTcpIface" style="background:#0f1117; border:1px solid #2d3148; border-radius:8px; color:#e2e8f0; padding:8px 12px; font-size:14px;">
+                <option value="wg0">wg0</option>
+                <option value="sbtun">sbtun</option>
+                <option value="enp2s0">enp2s0</option>
+              </select>
+              <input type="text" id="diagTcpFilter" placeholder="host 10.20.0.6" style="flex:1;" />
+              <input type="number" id="diagTcpCount" placeholder="10" min="1" max="50" style="width:60px;" />
+              <button class="btn btn-primary btn-sm" onclick="runTcpdump()" id="diagTcpBtn">Capture</button>
+            </div>
+            <div class="diag-quick-btns" id="diagTcpQuick"></div>
+            <pre id="diagTcpResult" class="diag-output" style="display:none;"></pre>
+          </div>
+
+          <!-- sing-box Logs -->
+          <div class="diag-tool">
+            <div class="diag-tool-header">
+              <span class="diag-tool-icon">📋</span>
+              <span class="diag-tool-title">sing-box Logs</span>
+            </div>
+            <div class="form-row" style="margin-bottom:8px;">
+              <input type="text" id="diagLogsPeer" placeholder="IP пира (пусто = все)" style="flex:1;" />
+              <input type="number" id="diagLogsLines" placeholder="50" min="10" max="200" style="width:70px;" />
+              <button class="btn btn-primary btn-sm" onclick="runLogs()">Показать</button>
+            </div>
+            <div class="diag-quick-btns" id="diagLogsQuick"></div>
+            <pre id="diagLogsResult" class="diag-output" style="display:none;"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- Сеть VPS -->
+      <div class="card">
+        <h2>Сеть VPS</h2>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
+          <button class="btn btn-ghost btn-sm" onclick="loadDiagRoutes()">Маршруты</button>
+          <button class="btn btn-ghost btn-sm" onclick="loadDiagNft()">NFTables (sing-box)</button>
+          <button class="btn btn-ghost btn-sm" onclick="loadDiagSbConfig()">sing-box config</button>
+        </div>
+        <pre id="diagNetworkResult" class="diag-output" style="display:none;"></pre>
+      </div>
+
     </div>
   </div>
 
@@ -305,6 +441,8 @@
     let TOKEN = localStorage.getItem('wg_token');
     let refreshTimer = null;
     let systemTimer = null;
+    let diagTimer = null;
+    let diagPeersData = [];
     let currentPeer = null;
     let currentPeerData = null;
     let singboxMode = 'mobile';
@@ -331,6 +469,7 @@
       TOKEN = null;
       clearInterval(refreshTimer);
       clearInterval(systemTimer);
+      clearInterval(diagTimer);
       document.getElementById('mainScreen').style.display = 'none';
       document.getElementById('loginScreen').style.display = 'flex';
       document.getElementById('tokenInput').value = '';
@@ -345,6 +484,7 @@
 
     function showList() {
       clearInterval(systemTimer);
+      clearInterval(diagTimer);
       document.getElementById('detailPanel').style.display = 'none';
       document.getElementById('mainScreen').style.display = 'block';
       showPage('peers');
@@ -352,14 +492,15 @@
 
     function showPage(page) {
       currentPage = page;
-      ['peers', 'system', 'whitelist'].forEach(p => {
+      ['peers', 'system', 'whitelist', 'diagnostics'].forEach(p => {
         document.getElementById(`page-${p}`).style.display = p === page ? 'block' : 'none';
       });
       document.querySelectorAll('.nav-btn').forEach((btn, i) => {
-        btn.classList.toggle('active', ['peers', 'system', 'whitelist'][i] === page);
+        btn.classList.toggle('active', ['peers', 'system', 'whitelist', 'diagnostics'][i] === page);
       });
       clearInterval(refreshTimer);
       clearInterval(systemTimer);
+      clearInterval(diagTimer);
 
       if (page === 'peers') {
         loadPeers();
@@ -370,6 +511,9 @@
       } else if (page === 'whitelist') {
         loadPresets();
         loadWhitelist();
+      } else if (page === 'diagnostics') {
+        loadDiagPeers();
+        diagTimer = setInterval(loadDiagPeers, 10000);
       }
     }
 
@@ -953,6 +1097,203 @@
         await refreshDetail();
       } catch (e) {
         alert(e.message);
+      }
+    }
+
+    // ── Diagnostics ──
+
+    function diagLoading(elId) {
+      const el = document.getElementById(elId);
+      el.style.display = 'block';
+      el.innerHTML = '<span class="diag-spinner"></span> Выполняется...';
+      return el;
+    }
+
+    function diagResult(elId, text) {
+      const el = document.getElementById(elId);
+      el.style.display = 'block';
+      el.textContent = text || '(пусто)';
+    }
+
+    async function loadDiagPeers() {
+      try {
+        const peers = await api('GET', '/api/diag/peers');
+        if (!peers) return;
+        diagPeersData = peers;
+
+        const allPeers = await api('GET', '/api/peers');
+        const nameMap = {};
+        if (allPeers) allPeers.forEach(p => { nameMap[p.pubkey] = p.name; });
+
+        const grid = document.getElementById('diagPeersGrid');
+        if (!peers.length) {
+          grid.innerHTML = '<div class="muted">Нет пиров</div>';
+          return;
+        }
+
+        grid.innerHTML = peers.map((p, idx) => {
+          const name = nameMap[p.pubkey] || p.allowedIps;
+          const ip = p.allowedIps ? p.allowedIps.split(',')[0].trim().replace('/32', '') : '?';
+          return `
+            <div class="diag-peer-card ${p.active ? 'peer-active' : 'peer-inactive'}">
+              <div class="diag-peer-name">${esc(name)}</div>
+              <div class="diag-peer-row"><span class="diag-peer-label">IP</span><span class="diag-peer-value">${esc(p.allowedIps)}</span></div>
+              <div class="diag-peer-row"><span class="diag-peer-label">Endpoint</span><span class="diag-peer-value">${esc(p.endpoint || 'нет')}</span></div>
+              <div class="diag-peer-row"><span class="diag-peer-label">Handshake</span><span class="diag-peer-value">${esc(p.handshakeText)}</span></div>
+              <div class="diag-peer-row"><span class="diag-peer-label">RX / TX</span><span class="diag-peer-value">${formatBytes(p.rx)} / ${formatBytes(p.tx)}</span></div>
+              <div class="diag-peer-actions">
+                <button class="btn btn-ghost btn-sm" onclick="diagPeerPing('${ip}')">Ping</button>
+                <button class="btn btn-ghost btn-sm" onclick="diagPeerTcpdump('${ip}')">tcpdump</button>
+                <button class="btn btn-ghost btn-sm" onclick="diagPeerLogs('${ip}')">Логи</button>
+              </div>
+            </div>`;
+        }).join('');
+
+        const quickPing = document.getElementById('diagPingQuick');
+        const quickTcp = document.getElementById('diagTcpQuick');
+        const quickLogs = document.getElementById('diagLogsQuick');
+        const peerBtns = peers.map(p => {
+          const ip = p.allowedIps ? p.allowedIps.split(',')[0].trim().replace('/32', '') : null;
+          const name = nameMap[p.pubkey] || ip;
+          return ip ? { ip, name } : null;
+        }).filter(Boolean);
+
+        quickPing.innerHTML = peerBtns.map(b =>
+          `<button class="btn btn-ghost btn-sm" onclick="document.getElementById('diagPingTarget').value='${b.ip}'; runPing()">${esc(b.name)}</button>`
+        ).join('') + '<button class="btn btn-ghost btn-sm" onclick="document.getElementById(\'diagPingTarget\').value=\'8.8.8.8\'; runPing()">8.8.8.8</button>';
+
+        quickTcp.innerHTML = peerBtns.map(b =>
+          `<button class="btn btn-ghost btn-sm" onclick="document.getElementById('diagTcpFilter').value='host ${b.ip}'; runTcpdump()">${esc(b.name)}</button>`
+        ).join('');
+
+        quickLogs.innerHTML = peerBtns.map(b =>
+          `<button class="btn btn-ghost btn-sm" onclick="document.getElementById('diagLogsPeer').value='${b.ip}'; runLogs()">${esc(b.name)}</button>`
+        ).join('');
+
+      } catch (e) {
+        document.getElementById('diagPeersGrid').innerHTML = `<div class="error">${esc(e.message)}</div>`;
+      }
+    }
+
+    function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+    function diagPeerPing(ip) {
+      document.getElementById('diagPingTarget').value = ip;
+      runPing();
+    }
+    function diagPeerTcpdump(ip) {
+      document.getElementById('diagTcpIface').value = 'wg0';
+      document.getElementById('diagTcpFilter').value = `host ${ip}`;
+      runTcpdump();
+    }
+    function diagPeerLogs(ip) {
+      document.getElementById('diagLogsPeer').value = ip;
+      runLogs();
+    }
+
+    async function runPing() {
+      const target = document.getElementById('diagPingTarget').value.trim();
+      if (!target) return;
+      const count = parseInt(document.getElementById('diagPingCount').value) || 4;
+      diagLoading('diagPingResult');
+      try {
+        const data = await api('POST', '/api/diag/ping', { target, count });
+        diagResult('diagPingResult', data?.result);
+      } catch (e) {
+        diagResult('diagPingResult', 'Error: ' + e.message);
+      }
+    }
+
+    async function runDns() {
+      const domain = document.getElementById('diagDnsDomain').value.trim();
+      if (!domain) return;
+      diagLoading('diagDnsResult');
+      try {
+        const data = await api('POST', '/api/diag/dns', { domain });
+        let text = '';
+        if (data?.nslookup) text += '=== nslookup ===\n' + data.nslookup + '\n\n';
+        if (data?.dig) text += '=== dig +short ===\n' + data.dig;
+        diagResult('diagDnsResult', text);
+      } catch (e) {
+        diagResult('diagDnsResult', 'Error: ' + e.message);
+      }
+    }
+
+    async function runCurl() {
+      const url = document.getElementById('diagCurlUrl').value.trim();
+      if (!url) return;
+      diagLoading('diagCurlResult');
+      try {
+        const data = await api('POST', '/api/diag/curl', { url });
+        diagResult('diagCurlResult', data?.result);
+      } catch (e) {
+        diagResult('diagCurlResult', 'Error: ' + e.message);
+      }
+    }
+
+    async function runTcpdump() {
+      const iface = document.getElementById('diagTcpIface').value;
+      const filter = document.getElementById('diagTcpFilter').value.trim();
+      const count = parseInt(document.getElementById('diagTcpCount').value) || 10;
+      const btn = document.getElementById('diagTcpBtn');
+      btn.disabled = true;
+      btn.textContent = 'Capturing...';
+      diagLoading('diagTcpResult');
+      try {
+        const data = await api('POST', '/api/diag/tcpdump', { iface, filter, count, timeout: 10 });
+        diagResult('diagTcpResult', data?.result || '(пакетов не обнаружено)');
+      } catch (e) {
+        diagResult('diagTcpResult', 'Error: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Capture';
+      }
+    }
+
+    async function runLogs() {
+      const peer = document.getElementById('diagLogsPeer').value.trim();
+      const lines = parseInt(document.getElementById('diagLogsLines').value) || 50;
+      diagLoading('diagLogsResult');
+      try {
+        const data = await api('GET', `/api/diag/logs?peer=${encodeURIComponent(peer)}&lines=${lines}`);
+        diagResult('diagLogsResult', data?.result);
+      } catch (e) {
+        diagResult('diagLogsResult', 'Error: ' + e.message);
+      }
+    }
+
+    async function loadDiagRoutes() {
+      diagLoading('diagNetworkResult');
+      try {
+        const data = await api('GET', '/api/diag/routes');
+        diagResult('diagNetworkResult', (data?.routes || []).join('\n'));
+      } catch (e) {
+        diagResult('diagNetworkResult', 'Error: ' + e.message);
+      }
+    }
+
+    async function loadDiagNft() {
+      diagLoading('diagNetworkResult');
+      try {
+        const data = await api('GET', '/api/diag/nftables');
+        diagResult('diagNetworkResult', data?.result);
+      } catch (e) {
+        diagResult('diagNetworkResult', 'Error: ' + e.message);
+      }
+    }
+
+    async function loadDiagSbConfig() {
+      diagLoading('diagNetworkResult');
+      try {
+        const data = await api('GET', '/api/diag/singbox-config');
+        try {
+          const parsed = JSON.parse(data?.result);
+          diagResult('diagNetworkResult', JSON.stringify(parsed, null, 2));
+        } catch {
+          diagResult('diagNetworkResult', data?.result);
+        }
+      } catch (e) {
+        diagResult('diagNetworkResult', 'Error: ' + e.message);
       }
     }
   </script>

@@ -8,6 +8,7 @@ const system = require('./system');
 const store = require('./store');
 const whitelist = require('./whitelist');
 const { PRESETS } = require('./presets');
+const diag = require('./diagnostics');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -318,6 +319,105 @@ app.delete('/api/whitelist/:domain', (req, res) => {
   try {
     whitelist.removeDomain(req.params.domain);
     res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Diagnostics ───────────────────────────────────────
+
+app.get('/api/diag/overview', (req, res) => {
+  try {
+    res.json(diag.getOverview());
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/diag/peers', (req, res) => {
+  try {
+    res.json(diag.getPeersDetailed());
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/diag/ping', (req, res) => {
+  try {
+    const { target, count } = req.body;
+    if (!target) return res.status(400).json({ error: 'target обязателен' });
+    const result = diag.pingTest(target, Math.min(count || 4, 10));
+    res.json({ result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/diag/dns', (req, res) => {
+  try {
+    const { domain } = req.body;
+    if (!domain) return res.status(400).json({ error: 'domain обязателен' });
+    res.json(diag.dnsTest(domain));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/diag/tcpdump', async (req, res) => {
+  try {
+    const { iface, filter, count, timeout } = req.body;
+    const result = await diag.tcpdumpCapture(
+      iface || 'wg0',
+      filter || '',
+      Math.min(count || 10, 50),
+      Math.min(timeout || 8, 15),
+    );
+    res.json({ result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/diag/logs', (req, res) => {
+  try {
+    const { peer, lines } = req.query;
+    const result = diag.getSingboxLogs(peer, Math.min(parseInt(lines) || 50, 200));
+    res.json({ result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/diag/nftables', (req, res) => {
+  try {
+    res.json({ result: diag.getNftSingbox() });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/diag/singbox-config', (req, res) => {
+  try {
+    res.json({ result: diag.getSingboxConfig() });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/diag/routes', (req, res) => {
+  try {
+    res.json({ routes: diag.getRoutes() });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/diag/curl', (req, res) => {
+  try {
+    const { url, timeout } = req.body;
+    if (!url) return res.status(400).json({ error: 'url обязателен' });
+    const result = diag.curlTest(url, Math.min(timeout || 5, 15));
+    res.json({ result });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
