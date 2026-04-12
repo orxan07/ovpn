@@ -328,6 +328,16 @@
         </div>
       </div>
 
+      <!-- Аудит WireGuard конфига -->
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h2 style="margin-bottom:0;">Аудит wg0.conf</h2>
+          <button class="btn btn-primary btn-sm" onclick="runAudit()">Запустить аудит</button>
+        </div>
+        <p class="muted" style="margin-bottom:12px;">Проверяет дубли IP, орфанные пиры (есть в конфиге но нет файла клиента), и расхождения между конфигом и runtime.</p>
+        <div id="auditResult"></div>
+      </div>
+
       <!-- Сеть VPS -->
       <div class="card">
         <h2>Сеть VPS</h2>
@@ -1279,6 +1289,90 @@
         diagResult('diagNetworkResult', data?.result);
       } catch (e) {
         diagResult('diagNetworkResult', 'Error: ' + e.message);
+      }
+    }
+
+    async function runAudit() {
+      const container = document.getElementById('auditResult');
+      container.innerHTML = '<span class="diag-spinner"></span> Анализ...';
+      try {
+        const data = await api('GET', '/api/diag/audit');
+        if (!data || data.error) {
+          container.innerHTML = `<div class="error">${esc(data?.error || 'Ошибка')}</div>`;
+          return;
+        }
+
+        let html = `<div style="margin-bottom:12px;"><strong>Всего пиров в wg0.conf:</strong> ${data.totalPeers}</div>`;
+
+        if (data.issues.length === 0) {
+          html += '<div style="color:#4ade80; margin-bottom:16px;">✓ Проблем не обнаружено</div>';
+        } else {
+          html += '<div style="color:#f87171; margin-bottom:12px; font-weight:600;">Обнаружены проблемы:</div>';
+          for (const issue of data.issues) {
+            if (issue.type === 'duplicate_ip') {
+              html += `<div style="background:#450a0a; border-radius:8px; padding:12px; margin-bottom:8px;">
+                <div style="color:#fca5a5; font-weight:600; margin-bottom:8px;">Дубль IP: ${esc(issue.ip)}</div>`;
+              for (const p of issue.peers) {
+                html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-top:1px solid #7f1d1d;">
+                  <div>
+                    <div style="font-size:13px; color:#e2e8f0;">${esc(p.name || 'Без имени (орфанный)')}</div>
+                    <div style="font-size:11px; color:#64748b; font-family:monospace;">${esc(p.pubkey?.substring(0, 20))}...</div>
+                    <div style="font-size:11px; color:#64748b;">AllowedIPs: ${esc(p.allowedIps.join(', '))}</div>
+                  </div>
+                  <button class="btn btn-danger btn-sm" onclick="removeDuplicatePeer('${esc(p.pubkey)}', this)">Удалить</button>
+                </div>`;
+              }
+              html += '</div>';
+            }
+            if (issue.type === 'orphaned_peers') {
+              html += `<div style="background:#78350f; border-radius:8px; padding:12px; margin-bottom:8px;">
+                <div style="color:#fcd34d; font-weight:600; margin-bottom:8px;">Орфанные пиры (${issue.count}): есть в wg0.conf, но нет файла клиента</div>`;
+              for (const p of issue.peers) {
+                html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-top:1px solid #92400e;">
+                  <div>
+                    <div style="font-size:11px; color:#e2e8f0; font-family:monospace;">${esc(p.pubkey?.substring(0, 30))}...</div>
+                    <div style="font-size:11px; color:#64748b;">AllowedIPs: ${esc(p.allowedIps.join(', '))} | Runtime: ${p.inRuntime ? 'да' : 'нет'}</div>
+                  </div>
+                  <button class="btn btn-danger btn-sm" onclick="removeDuplicatePeer('${esc(p.pubkey)}', this)">Удалить</button>
+                </div>`;
+              }
+              html += '</div>';
+            }
+          }
+        }
+
+        html += '<div style="margin-top:16px;"><strong>Все пиры:</strong></div>';
+        html += '<div style="margin-top:8px;">';
+        for (const p of data.peers) {
+          const statusColor = p.inRuntime ? '#4ade80' : '#78716c';
+          html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; border-bottom:1px solid #1e2235;">
+            <div>
+              <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${statusColor}; margin-right:8px;"></span>
+              <strong style="font-size:13px;">${esc(p.name || '???')}</strong>
+              <span style="color:#64748b; font-size:11px; margin-left:8px;">${esc(p.allowedIps.join(', '))}</span>
+            </div>
+            <span style="font-size:11px; color:#64748b; font-family:monospace;">${esc(p.pubkey?.substring(0, 16))}...</span>
+          </div>`;
+        }
+        html += '</div>';
+
+        container.innerHTML = html;
+      } catch (e) {
+        container.innerHTML = `<div class="error">${esc(e.message)}</div>`;
+      }
+    }
+
+    async function removeDuplicatePeer(pubkey, btn) {
+      if (!confirm('Удалить этот пир из wg0.conf и runtime? Это действие необратимо.')) return;
+      btn.disabled = true;
+      btn.textContent = '...';
+      try {
+        await api('POST', '/api/diag/remove-peer', { pubkey });
+        await runAudit();
+      } catch (e) {
+        alert('Ошибка: ' + e.message);
+        btn.disabled = false;
+        btn.textContent = 'Удалить';
       }
     }
 

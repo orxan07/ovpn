@@ -423,6 +423,24 @@ app.post('/api/diag/curl', (req, res) => {
   }
 });
 
+app.get('/api/diag/audit', (req, res) => {
+  try {
+    res.json(diag.auditWgConfig());
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/diag/remove-peer', (req, res) => {
+  try {
+    const { pubkey } = req.body;
+    if (!pubkey) return res.status(400).json({ error: 'pubkey обязателен' });
+    res.json(diag.removePeerFromConfig(pubkey));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Фоновый поллинг ────────────────────────────────────
 // Каждые 30 сек: трекаем endpoint'ы и проверяем лимиты
 

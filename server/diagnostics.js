@@ -135,6 +135,128 @@ function curlTest(url, timeout = 5) {
   return run(`curl -sS -o /dev/null -w "HTTP %{http_code} | Time: %{time_total}s | IP: %{remote_ip}" --max-time ${timeout} "${url}" 2>&1`, (timeout + 2) * 1000);
 }
 
+function auditWgConfig() {
+  const raw = run('sudo cat /etc/wireguard/wg0.conf', 5000);
+  if (raw.startsWith('error')) return { error: raw };
+
+  const peers = [];
+  let current = null;
+  for (const line of raw.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed === '[Peer]') {
+      if (current) peers.push(current);
+      current = { pubkey: null, allowedIps: [], raw: '' };
+    }
+    if (current) {
+      current.raw += line + '\n';
+      const pkMatch = trimmed.match(/^PublicKey\s*=\s*(.+)/);
+      if (pkMatch) current.pubkey = pkMatch[1].trim();
+      const aMatch = trimmed.match(/^AllowedIPs\s*=\s*(.+)/);
+      if (aMatch) current.allowedIps = aMatch[1].split(',').map(s => s.trim());
+    }
+  }
+  if (current) peers.push(current);
+
+  const clientFiles = run('ls /etc/wireguard/clients/*.pub 2>/dev/null', 5000);
+  const nameMap = {};
+  if (clientFiles && !clientFiles.startsWith('error')) {
+    for (const f of clientFiles.split('\n').filter(Boolean)) {
+      const name = f.replace(/.*\//, '').replace('.pub', '');
+      const pk = run(`sudo cat "${f}"`, 3000).trim();
+      if (pk) nameMap[pk] = name;
+    }
+  }
+
+  const ipMap = {};
+  const issues = [];
+
+  for (const p of peers) {
+    p.name = nameMap[p.pubkey] || null;
+    for (const ip of p.allowedIps) {
+      const base = ip.split('/')[0];
+      if (!ipMap[base]) ipMap[base] = [];
+      ipMap[base].push(p);
+    }
+  }
+
+  for (const [ip, list] of Object.entries(ipMap)) {
+    if (ip.startsWith('192.168') || ip.startsWith('10.0') || ip.startsWith('172.')) continue;
+    if (list.length > 1) {
+      issues.push({
+        type: 'duplicate_ip',
+        ip,
+        peers: list.map(p => ({ pubkey: p.pubkey, name: p.name, allowedIps: p.allowedIps })),
+      });
+    }
+  }
+
+  const runtimeDump = run('sudo wg show wg0 dump', 5000);
+  const runtimePeers = new Set();
+  if (runtimeDump && !runtimeDump.startsWith('error')) {
+    for (const line of runtimeDump.split('\n').slice(1)) {
+      if (!line.trim()) continue;
+      runtimePeers.add(line.split('\t')[0]);
+    }
+  }
+
+  for (const p of peers) {
+    p.inRuntime = runtimePeers.has(p.pubkey);
+  }
+
+  const orphaned = peers.filter(p => !p.name);
+  if (orphaned.length) {
+    issues.push({
+      type: 'orphaned_peers',
+      count: orphaned.length,
+      peers: orphaned.map(p => ({ pubkey: p.pubkey, allowedIps: p.allowedIps, inRuntime: p.inRuntime })),
+    });
+  }
+
+  return {
+    totalPeers: peers.length,
+    peers: peers.map(p => ({
+      pubkey: p.pubkey,
+      name: p.name,
+      allowedIps: p.allowedIps,
+      inRuntime: p.inRuntime,
+    })),
+    issues,
+    raw: raw,
+  };
+}
+
+function removePeerFromConfig(pubkey) {
+  const raw = run('sudo cat /etc/wireguard/wg0.conf', 5000);
+  if (raw.startsWith('error')) return { error: raw };
+
+  const lines = raw.split('\n');
+  const result = [];
+  let skip = false;
+
+  for (const line of lines) {
+    if (line.trim() === '[Peer]') {
+      skip = false;
+    }
+    if (line.trim().startsWith('PublicKey') && line.includes(pubkey)) {
+      // Remove the [Peer] header we just added
+      while (result.length && result[result.length - 1].trim() === '[Peer]') result.pop();
+      while (result.length && result[result.length - 1].trim() === '') result.pop();
+      skip = true;
+      continue;
+    }
+    if (skip && (line.trim() === '[Peer]' || line.trim() === '[Interface]')) {
+      skip = false;
+    }
+    if (!skip) result.push(line);
+  }
+
+  const newConf = result.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
+  run(`sudo bash -c 'cat > /etc/wireguard/wg0.conf << "WGEOF"\n${newConf}WGEOF'`, 5000);
+  run(`sudo wg set wg0 peer ${pubkey} remove`, 5000);
+
+  return { ok: true, removed: pubkey };
+}
+
 module.exports = {
   getOverview,
   getPeersDetailed,
@@ -149,4 +271,6 @@ module.exports = {
   tcpdumpCapture,
   getSingboxLogs,
   curlTest,
+  auditWgConfig,
+  removePeerFromConfig,
 };
