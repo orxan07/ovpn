@@ -328,6 +328,32 @@
         </div>
       </div>
 
+      <!-- Keenetic CLI -->
+      <div class="card">
+        <div class="diag-tool">
+          <div class="diag-tool-header">
+            <span class="diag-tool-icon">🖥️</span>
+            <span class="diag-tool-title">Keenetic CLI (через VPS → telnet)</span>
+          </div>
+          <div class="form-row" style="margin-bottom:8px;">
+            <input type="text" id="keeneticHost" value="10.20.0.6" placeholder="IP Keenetic" style="width:130px;" />
+            <input type="text" id="keeneticLogin" value="admin" placeholder="Login" style="width:80px;" />
+            <input type="password" id="keeneticPass" placeholder="Password" style="width:120px;" />
+          </div>
+          <div class="form-row" style="margin-bottom:8px;">
+            <input type="text" id="keeneticCmd" placeholder="Команда (например: show interface Wireguard0)" style="flex:1;" onkeydown="if(event.key==='Enter') runKeeneticCmd()" />
+            <button class="btn btn-primary btn-sm" onclick="runKeeneticCmd()">Run</button>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+            <button class="btn btn-ghost btn-sm" onclick="runKeeneticBatch(['show ip route'])">show ip route</button>
+            <button class="btn btn-ghost btn-sm" onclick="runKeeneticBatch(['show interface Wireguard0'])">show wg0</button>
+            <button class="btn btn-ghost btn-sm" onclick="runKeeneticBatch(['ip route 0.0.0.0/1 Wireguard0', 'ip route 128.0.0.0/1 Wireguard0', 'system configuration save'])">Добавить /1 маршруты</button>
+            <button class="btn btn-ghost btn-sm" onclick="runKeeneticBatch(['no ip route 0.0.0.0/1 Wireguard0', 'no ip route 128.0.0.0/1 Wireguard0', 'system configuration save'])">Убрать /1 маршруты</button>
+          </div>
+          <pre id="keeneticResult" class="diag-output" style="display:none;"></pre>
+        </div>
+      </div>
+
       <!-- Аудит WireGuard конфига -->
       <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
@@ -1333,6 +1359,25 @@
         diagResult('diagNetworkResult', data?.result);
       } catch (e) {
         diagResult('diagNetworkResult', 'Error: ' + e.message);
+      }
+    }
+
+    async function runKeeneticCmd() {
+      const cmd = document.getElementById('keeneticCmd').value.trim();
+      if (!cmd) return;
+      await runKeeneticBatch([cmd]);
+    }
+
+    async function runKeeneticBatch(commands) {
+      const host = document.getElementById('keeneticHost').value.trim();
+      const login = document.getElementById('keeneticLogin').value.trim();
+      const password = document.getElementById('keeneticPass').value;
+      diagLoading('keeneticResult');
+      try {
+        const data = await api('POST', '/api/diag/keenetic-exec', { host, commands, login, password });
+        diagResult('keeneticResult', data?.result || '(пусто)');
+      } catch (e) {
+        diagResult('keeneticResult', 'Error: ' + e.message);
       }
     }
 

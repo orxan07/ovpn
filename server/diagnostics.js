@@ -1,4 +1,5 @@
 const { execSync, spawn } = require('child_process');
+const net = require('net');
 
 function run(cmd, timeout = 5000) {
   try {
@@ -257,6 +258,50 @@ function removePeerFromConfig(pubkey) {
   return { ok: true, removed: pubkey };
 }
 
+function keeneticExec(host, port, commands, login = 'admin', password = '') {
+  return new Promise((resolve, reject) => {
+    let output = '';
+    let cmdIndex = 0;
+    let authenticated = false;
+    let sentPassword = false;
+    const allCmds = [...commands, 'exit'];
+    const timeout = setTimeout(() => {
+      client.destroy();
+      resolve(output);
+    }, 12000);
+
+    const client = net.createConnection({ host, port: port || 23 }, () => {});
+
+    client.on('data', (data) => {
+      const text = data.toString();
+      output += text;
+
+      if (!authenticated && text.includes('Login:')) {
+        client.write(login + '\n');
+        return;
+      }
+      if (!authenticated && text.includes('Password:')) {
+        client.write(password + '\n');
+        sentPassword = true;
+        return;
+      }
+      if (!authenticated && (text.includes('(config)>') || text.includes('>'))) {
+        authenticated = true;
+      }
+      if (authenticated && (text.includes('(config)>') || text.trimEnd().endsWith('>'))) {
+        if (cmdIndex < allCmds.length) {
+          client.write(allCmds[cmdIndex] + '\n');
+          cmdIndex++;
+        }
+      }
+    });
+
+    client.on('end', () => { clearTimeout(timeout); resolve(output); });
+    client.on('error', (e) => { clearTimeout(timeout); reject(e); });
+    client.on('close', () => { clearTimeout(timeout); resolve(output); });
+  });
+}
+
 module.exports = {
   getOverview,
   getPeersDetailed,
@@ -273,4 +318,5 @@ module.exports = {
   curlTest,
   auditWgConfig,
   removePeerFromConfig,
+  keeneticExec,
 };

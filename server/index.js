@@ -433,6 +433,17 @@ app.post('/api/diag/curl', (req, res) => {
   }
 });
 
+app.post('/api/diag/keenetic-exec', async (req, res) => {
+  try {
+    const { host, port, commands, login, password } = req.body;
+    if (!host || !commands?.length) return res.status(400).json({ error: 'host и commands обязательны' });
+    const result = await diag.keeneticExec(host, port || 23, commands, login || 'admin', password || '');
+    res.json({ result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/api/diag/audit', (req, res) => {
   try {
     res.json(diag.auditWgConfig());
