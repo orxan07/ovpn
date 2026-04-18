@@ -252,6 +252,70 @@ function getServerCert() {
   return pem;
 }
 
+// ── Diagnostics: интеграция SSTP-трафика с sing-box ────
+
+function getIntegrationDiagnostics() {
+  const out = {};
+  out.sstpStatus = (() => {
+    try { return getStatus(); } catch (e) { return { error: e.message }; }
+  })();
+
+  // 1. iptables NAT - есть ли MASQUERADE для SSTP-подсети
+  out.iptablesNat = safeRun('sudo iptables -t nat -S POSTROUTING')
+    || safeRun('sudo iptables -t nat -L POSTROUTING -n -v');
+
+  // 2. iptables FORWARD - проходит ли трафик от sstp+
+  out.iptablesForward = safeRun('sudo iptables -S FORWARD');
+
+  // 3. iptables mangle - tproxy метки (для transparent proxy схемы)
+  out.iptablesMangle = safeRun('sudo iptables -t mangle -S');
+
+  // 4. nftables - полное состояние (если используется nft вместо iptables)
+  out.nftRuleset = safeRun('sudo nft list ruleset 2>/dev/null');
+
+  // 5. ip rules - policy routing (часто sing-box использует свою таблицу)
+  out.ipRules = safeRun('ip rule show');
+
+  // 6. ip routes основной таблицы
+  out.ipRoutesMain = safeRun('ip route show table main');
+
+  // 7. ip routes всех таблиц с upstream-trafficом sing-box (часто 100, 7777)
+  out.ipRoutesAll = safeRun('ip route show table all 2>/dev/null | head -100');
+
+  // 8. что слушает sing-box (tun, tproxy, redirect)
+  let singboxConfig = null;
+  try {
+    singboxConfig = JSON.parse(safeRun('sudo cat /etc/sing-box/config.json'));
+  } catch {}
+  out.singboxInbounds = singboxConfig
+    ? (singboxConfig.inbounds || []).map(i => ({
+        type: i.type,
+        tag: i.tag,
+        listen: i.listen,
+        listen_port: i.listen_port,
+        interface_name: i.interface_name,
+        inet4_address: i.inet4_address,
+        auto_route: i.auto_route,
+      }))
+    : null;
+
+  // 9. интерфейсы sstp/wg/tun/sing-box
+  out.interfaces = safeRun(`ip -br addr | grep -E '^(sstp|wg|tun|singbox|sing-box)' || true`);
+
+  // 10. проверки наличия правил конкретно для SSTP-подсети
+  const sstpNet = '10.27.0.0/24';
+  out.checks = {
+    masqueradeForSstp: out.iptablesNat.includes(sstpNet),
+    forwardForSstpInterface: /sstp\+|sstp[0-9]/.test(out.iptablesForward),
+    nftHasSstp: out.nftRuleset && (out.nftRuleset.includes('sstp') || out.nftRuleset.includes(sstpNet)),
+    singboxHasTun: !!(out.singboxInbounds || []).find(i => i.type === 'tun'),
+    singboxHasTproxy: !!(out.singboxInbounds || []).find(i => i.type === 'tproxy'),
+    singboxHasRedirect: !!(out.singboxInbounds || []).find(i => i.type === 'redirect'),
+  };
+
+  return out;
+}
+
 function getCertInfo() {
   // Парсит cert через openssl: subject, issuer, SAN, даты, fingerprint
   const pem = getServerCert();
@@ -279,4 +343,5 @@ module.exports = {
   restart,
   getServerCert,
   getCertInfo,
+  getIntegrationDiagnostics,
 };

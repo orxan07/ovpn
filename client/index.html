@@ -203,6 +203,25 @@
       </div>
 
       <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
+          <div>
+            <h2 style="margin-bottom:6px;">Интеграция с sing-box (whitelist для SSTP)</h2>
+            <div class="muted" style="font-size:12px;">
+              По умолчанию SSTP-трафик идёт мимо sing-box, поэтому Telegram/ChatGPT
+              открываются с российского IP сервера. Эта диагностика собирает текущее
+              состояние iptables/nftables/маршрутов, чтобы понять как завернуть SSTP в sing-box.
+            </div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-ghost btn-sm" onclick="loadSstpIntegration()">Проверить</button>
+            <button class="btn btn-ghost btn-sm" onclick="copySstpIntegration()">Скопировать всё</button>
+          </div>
+        </div>
+        <div id="sstpIntegrationChecks" style="display:none; margin-bottom:12px;"></div>
+        <pre id="sstpIntegrationOut" style="max-height:400px; overflow:auto;">нажмите «Проверить»</pre>
+      </div>
+
+      <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
           <h2 style="margin-bottom:0;">Активные сессии</h2>
           <span id="sstpSessionsCount" class="muted"></span>
@@ -1792,6 +1811,67 @@
       } catch (e) {
         el.textContent = 'Ошибка: ' + e.message;
       }
+    }
+
+    let _sstpIntegrationText = '';
+
+    async function loadSstpIntegration() {
+      const out = document.getElementById('sstpIntegrationOut');
+      const checksEl = document.getElementById('sstpIntegrationChecks');
+      out.textContent = 'Загрузка...';
+      checksEl.style.display = 'none';
+      try {
+        const d = await api('GET', '/api/sstp/integration');
+
+        // верхний блок - быстрые проверки
+        const checks = d.checks || {};
+        const item = (label, ok) =>
+          `<div style="display:flex; align-items:center; gap:8px; padding:4px 0;">
+             <div class="dot ${ok ? 'dot-green' : 'dot-red'}"></div>
+             <span style="font-size:13px;">${label}</span>
+           </div>`;
+        checksEl.innerHTML = `
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:6px; padding:10px 14px; background:#0f1117; border-radius:8px;">
+            ${item('MASQUERADE для 10.27.0.0/24 в iptables NAT', checks.masqueradeForSstp)}
+            ${item('FORWARD-правило для sstp+ интерфейса', checks.forwardForSstpInterface)}
+            ${item('Упоминания sstp в nftables', checks.nftHasSstp)}
+            ${item('sing-box использует tun-inbound', checks.singboxHasTun)}
+            ${item('sing-box использует tproxy-inbound', checks.singboxHasTproxy)}
+            ${item('sing-box использует redirect-inbound', checks.singboxHasRedirect)}
+          </div>
+        `;
+        checksEl.style.display = 'block';
+
+        // полный текст
+        const sections = [
+          ['SSTP status', JSON.stringify(d.sstpStatus, null, 2)],
+          ['sing-box inbounds', JSON.stringify(d.singboxInbounds, null, 2)],
+          ['VPN/tunnel interfaces', d.interfaces],
+          ['iptables -t nat -S POSTROUTING', d.iptablesNat],
+          ['iptables -S FORWARD', d.iptablesForward],
+          ['iptables -t mangle -S', d.iptablesMangle],
+          ['nft list ruleset', d.nftRuleset || '(empty / nft не используется)'],
+          ['ip rule', d.ipRules],
+          ['ip route show table main', d.ipRoutesMain],
+          ['ip route show table all (head 100)', d.ipRoutesAll],
+        ];
+        _sstpIntegrationText = sections
+          .map(([title, body]) => `===== ${title} =====\n${body || '(пусто)'}\n`)
+          .join('\n');
+        out.textContent = _sstpIntegrationText;
+      } catch (e) {
+        out.textContent = 'Ошибка: ' + e.message;
+      }
+    }
+
+    function copySstpIntegration() {
+      if (!_sstpIntegrationText) {
+        alert('Сначала нажмите «Проверить»');
+        return;
+      }
+      navigator.clipboard.writeText(_sstpIntegrationText).then(() => {
+        alert('Скопировано');
+      });
     }
   </script>
 </body>

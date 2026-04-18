@@ -418,6 +418,12 @@ app.get('/api/sstp/cert/info', (req, res) => {
   catch (e) { res.status(404).json({ error: e.message }); }
 });
 
+// Диагностика интеграции SSTP-трафика с sing-box
+app.get('/api/sstp/integration', (req, res) => {
+  try { res.json(sstp.getIntegrationDiagnostics()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Diagnostics ───────────────────────────────────────
 
 app.get('/api/diag/overview', (req, res) => {
