@@ -75,6 +75,47 @@ const PRESETS = [
     ],
     ipCidr: [],
   },
+  {
+    name: 'Netflix',
+    // Все домены идут по SNI/HTTPS, поэтому списка доменов почти всегда хватает.
+    domains: [
+      'netflix.com',         // основной сайт + API
+      'netflix.net',
+      'nflxext.com',         // статика, UI bundle
+      'nflximg.com',         // постеры, картинки
+      'nflximg.net',
+      'nflxso.net',          // UI / заставки
+      'nflxvideo.net',       // видео-CDN (Open Connect)
+      'fast.com',            // спидтест Netflix
+      'netflixdnstest1.com', // DNS-проверка региона (geo-fence)
+      'netflixdnstest2.com',
+      'netflixdnstest3.com',
+      'netflixdnstest4.com',
+      'netflixdnstest5.com',
+      'netflixdnstest6.com',
+      'netflixdnstest7.com',
+      'netflixdnstest8.com',
+      'netflixdnstest9.com',
+      'netflixdnstest10.com',
+    ],
+    // ASN AS2906 (Netflix) — основные блоки Open Connect.
+    // Нужны если sing-box работает в режиме без SNI-sniff, либо если
+    // приложение Netflix использует QUIC и SNI не виден на промежуточном уровне.
+    ipCidr: [
+      '23.246.0.0/18',
+      '37.77.184.0/21',
+      '38.72.126.0/24',
+      '45.57.0.0/17',
+      '64.120.128.0/17',
+      '66.197.128.0/17',
+      '108.175.32.0/20',
+      '185.2.220.0/22',
+      '185.9.188.0/22',
+      '192.173.64.0/18',
+      '198.38.96.0/19',
+      '198.45.48.0/20',
+    ],
+  },
 ];
 
 module.exports = { PRESETS };
