@@ -13,6 +13,7 @@ const fs = require('fs');
 
 const CHAP_SECRETS = '/etc/accel-ppp/chap-secrets';
 const CONF = '/etc/accel-ppp.conf';
+const SERVER_CERT = '/etc/accel-ppp/sstp/server.crt';
 const SERVICE = 'accel-ppp';
 
 function run(cmd, opts = {}) {
@@ -242,6 +243,30 @@ function restart() {
   return { ok: true };
 }
 
+function getServerCert() {
+  // Возвращает PEM содержимого server.crt (для импорта в Trusted Root на Windows)
+  const pem = safeRun(`sudo cat ${SERVER_CERT}`);
+  if (!pem || !pem.includes('BEGIN CERTIFICATE')) {
+    throw new Error(`Сертификат не найден: ${SERVER_CERT}`);
+  }
+  return pem;
+}
+
+function getCertInfo() {
+  // Парсит cert через openssl: subject, issuer, SAN, даты, fingerprint
+  const pem = getServerCert();
+  const tmp = `/tmp/sstp-cert-info-${Date.now()}.pem`;
+  fs.writeFileSync(tmp, pem);
+  try {
+    const text = safeRun(
+      `openssl x509 -in ${tmp} -noout -subject -issuer -startdate -enddate -fingerprint -sha256 -ext subjectAltName 2>/dev/null`
+    );
+    return { pem, text };
+  } finally {
+    try { fs.unlinkSync(tmp); } catch {}
+  }
+}
+
 module.exports = {
   getStatus,
   getUsers,
@@ -252,4 +277,6 @@ module.exports = {
   getSessions,
   disconnectSession,
   restart,
+  getServerCert,
+  getCertInfo,
 };

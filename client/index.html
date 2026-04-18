@@ -188,12 +188,18 @@
             <h2 style="margin-bottom:6px;">SSTP-сервер</h2>
             <div id="sstpStatusLine" class="muted">Загрузка...</div>
           </div>
-          <div style="display:flex; gap:8px;">
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button class="btn btn-ghost btn-sm" onclick="loadSstp()">Обновить</button>
+            <button class="btn btn-ghost btn-sm" onclick="downloadSstpCert()">Скачать cert (для Windows)</button>
             <button class="btn btn-warning btn-sm" onclick="restartSstp()">Перезапустить</button>
           </div>
         </div>
         <div class="stats-grid" id="sstpStatsGrid" style="margin-top:14px;"></div>
+        <details style="margin-top:14px;">
+          <summary class="muted" style="cursor:pointer; font-size:12px;">Информация о TLS-сертификате</summary>
+          <pre id="sstpCertInfo" style="margin-top:10px;">нажмите «Информация», чтобы загрузить...</pre>
+          <button class="btn btn-ghost btn-sm" onclick="loadSstpCertInfo()" style="margin-top:8px;">Загрузить информацию</button>
+        </details>
       </div>
 
       <div class="card">
@@ -1751,6 +1757,40 @@
         setTimeout(loadSstp, 2000);
       } catch (e) {
         alert(e.message);
+      }
+    }
+
+    async function downloadSstpCert() {
+      try {
+        const res = await fetch('/api/sstp/cert', {
+          headers: { 'Authorization': `Bearer ${TOKEN}` },
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: res.statusText }));
+          throw new Error(err.error || res.statusText);
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'sstp-server.crt';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        alert('Не удалось скачать cert: ' + e.message);
+      }
+    }
+
+    async function loadSstpCertInfo() {
+      const el = document.getElementById('sstpCertInfo');
+      el.textContent = 'Загрузка...';
+      try {
+        const data = await api('GET', '/api/sstp/cert/info');
+        el.textContent = data.text || data.pem || '(пусто)';
+      } catch (e) {
+        el.textContent = 'Ошибка: ' + e.message;
       }
     }
   </script>

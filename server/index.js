@@ -404,6 +404,20 @@ app.post('/api/sstp/restart', (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Скачать TLS-сертификат сервера (для импорта в Trusted Root на Windows и т.п.)
+app.get('/api/sstp/cert', (req, res) => {
+  try {
+    const pem = sstp.getServerCert();
+    res.setHeader('Content-Disposition', 'attachment; filename="sstp-server.crt"');
+    res.type('application/x-pem-file').send(pem);
+  } catch (e) { res.status(404).json({ error: e.message }); }
+});
+
+app.get('/api/sstp/cert/info', (req, res) => {
+  try { res.json(sstp.getCertInfo()); }
+  catch (e) { res.status(404).json({ error: e.message }); }
+});
+
 // ── Diagnostics ───────────────────────────────────────
 
 app.get('/api/diag/overview', (req, res) => {
