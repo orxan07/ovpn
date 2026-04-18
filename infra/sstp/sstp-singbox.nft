@@ -1,0 +1,45 @@
+#!/usr/sbin/nft -f
+# ---------------------------------------------------------------------------
+# Завернуть трафик SSTP-клиентов через sing-box, чтобы whitelist (Telegram,
+# ChatGPT, YouTube и т.д.) работал так же, как для WireGuard.
+#
+# Опирается на существующую интеграцию sing-box (tun "sbtun" + table 2022
+# + fwmark 0x2023). Не модифицирует таблицу `inet sing-box`, потому что
+# sing-box её пересоздаёт сам при рестарте.
+#
+# Применить:        sudo nft -f /etc/nftables.d/sstp-singbox.nft
+# Откатить:         sudo nft delete table inet sstp-singbox
+# Проверить:        sudo nft list table inet sstp-singbox
+# ---------------------------------------------------------------------------
+
+table inet sstp-singbox
+delete table inet sstp-singbox
+
+table inet sstp-singbox {
+    # 1) DNS-запросы клиентов перехватываем и DNAT-им на DNS sing-box,
+    #    чтобы он отвечал по правилам route.rules (whitelist через outline,
+    #    остальное — напрямую). Без этого whitelist по доменам не сработает,
+    #    потому что у клиентов DNS = 1.1.1.1/8.8.8.8 напрямую.
+    chain prerouting_nat {
+        type nat hook prerouting priority dstnat; policy accept;
+        iifname != "sstp*" return
+        meta l4proto { tcp, udp } th dport 53 dnat ip to 172.19.0.2
+    }
+
+    # 2) Помечаем не-приватный трафик с sstp+ маркой 0x2023.
+    #    `ip rule fwmark 0x2023 lookup 2022` отправит такие пакеты
+    #    через `default via 172.19.0.2 dev sbtun` → попадут в sing-box.
+    chain prerouting_mark {
+        type filter hook prerouting priority mangle; policy accept;
+        iifname != "sstp*" return
+        # внутрисетевой / приватный трафик через sing-box не гоним
+        ip daddr {
+            10.0.0.0/8,
+            172.16.0.0/12,
+            192.168.0.0/16,
+            169.254.0.0/16,
+            127.0.0.0/8
+        } return
+        meta mark set 0x00002023 ct mark set 0x00002023
+    }
+}

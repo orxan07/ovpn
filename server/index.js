@@ -424,6 +424,22 @@ app.get('/api/sstp/integration', (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Управление интеграцией SSTP↔sing-box
+app.get('/api/sstp/singbox-integration', (req, res) => {
+  try { res.json(sstp.getSingboxIntegrationStatus()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/sstp/singbox-integration/enable', (req, res) => {
+  try { res.json(sstp.enableSingboxIntegration()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/sstp/singbox-integration/disable', (req, res) => {
+  try { res.json(sstp.disableSingboxIntegration()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Diagnostics ───────────────────────────────────────
 
 app.get('/api/diag/overview', (req, res) => {

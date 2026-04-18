@@ -203,22 +203,32 @@
       </div>
 
       <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
-          <div>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
+          <div style="flex:1; min-width:300px;">
             <h2 style="margin-bottom:6px;">Интеграция с sing-box (whitelist для SSTP)</h2>
             <div class="muted" style="font-size:12px;">
-              По умолчанию SSTP-трафик идёт мимо sing-box, поэтому Telegram/ChatGPT
-              открываются с российского IP сервера. Эта диагностика собирает текущее
-              состояние iptables/nftables/маршрутов, чтобы понять как завернуть SSTP в sing-box.
+              По умолчанию SSTP-трафик идёт напрямую через WAN сервера, поэтому ChatGPT и т.п.
+              открываются с российского IP. Включение этой интеграции добавляет nft-правила,
+              которые DNAT-ят DNS клиентов на sing-box и помечают трафик так, чтобы он попал в
+              существующий sbtun → sing-box → Outline для доменов из whitelist.
             </div>
           </div>
-          <div style="display:flex; gap:8px;">
-            <button class="btn btn-ghost btn-sm" onclick="loadSstpIntegration()">Проверить</button>
-            <button class="btn btn-ghost btn-sm" onclick="copySstpIntegration()">Скопировать всё</button>
+          <div id="sstpSbState" style="text-align:right; display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
+            <span class="muted">Загрузка...</span>
           </div>
         </div>
+
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
+          <button class="btn btn-success btn-sm" onclick="enableSstpSingbox()">Включить интеграцию</button>
+          <button class="btn btn-danger btn-sm" onclick="disableSstpSingbox()">Отключить</button>
+          <button class="btn btn-ghost btn-sm" onclick="loadSstpSingboxState()">Обновить статус</button>
+          <span style="flex:1;"></span>
+          <button class="btn btn-ghost btn-sm" onclick="loadSstpIntegration()">Полная диагностика</button>
+          <button class="btn btn-ghost btn-sm" onclick="copySstpIntegration()">Скопировать диагностику</button>
+        </div>
+
         <div id="sstpIntegrationChecks" style="display:none; margin-bottom:12px;"></div>
-        <pre id="sstpIntegrationOut" style="max-height:400px; overflow:auto;">нажмите «Проверить»</pre>
+        <pre id="sstpIntegrationOut" style="max-height:400px; overflow:auto;">нажмите «Полная диагностика»</pre>
       </div>
 
       <div class="card">
@@ -1612,6 +1622,7 @@
       } catch (e) {
         document.getElementById('sstpStatusLine').innerHTML = `<span class="error">${e.message}</span>`;
       }
+      loadSstpSingboxState();
     }
 
     function renderSstpStatus(s) {
@@ -1866,12 +1877,59 @@
 
     function copySstpIntegration() {
       if (!_sstpIntegrationText) {
-        alert('Сначала нажмите «Проверить»');
+        alert('Сначала нажмите «Полная диагностика»');
         return;
       }
       navigator.clipboard.writeText(_sstpIntegrationText).then(() => {
         alert('Скопировано');
       });
+    }
+
+    async function loadSstpSingboxState() {
+      const el = document.getElementById('sstpSbState');
+      try {
+        const s = await api('GET', '/api/sstp/singbox-integration');
+        const badge = s.active
+          ? `<span class="badge active">Активна</span>`
+          : `<span class="badge inactive">Не активна</span>`;
+        const sbtun = s.prerequisites?.sbtunUp
+          ? '<span style="color:#4ade80">sbtun ✓</span>'
+          : '<span style="color:#f87171">sbtun ✗</span>';
+        const route = s.prerequisites?.route2022HasDefault
+          ? '<span style="color:#4ade80">table 2022 ✓</span>'
+          : '<span style="color:#f87171">table 2022 ✗</span>';
+        const svc = `<span class="muted">systemd: ${s.serviceState}${s.serviceEnabled ? ' (enabled)' : ''}</span>`;
+        el.innerHTML = `
+          ${badge}
+          <div style="font-size:11px; display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+            ${sbtun} ${route}
+          </div>
+          <div style="font-size:11px;">${svc}</div>
+        `;
+      } catch (e) {
+        el.innerHTML = `<span class="error">${e.message}</span>`;
+      }
+    }
+
+    async function enableSstpSingbox() {
+      if (!confirm('Включить интеграцию? SSTP-трафик пойдёт через sing-box (whitelist начнёт работать).')) return;
+      try {
+        await api('POST', '/api/sstp/singbox-integration/enable');
+        await loadSstpSingboxState();
+        alert('Интеграция включена. Проверь Telegram/ChatGPT на iPhone (предварительно отключи/включи Wi-Fi на телефоне, чтобы DNS-кэш сбросился).');
+      } catch (e) {
+        alert('Ошибка: ' + e.message);
+      }
+    }
+
+    async function disableSstpSingbox() {
+      if (!confirm('Отключить интеграцию? SSTP-трафик снова пойдёт напрямую (без whitelist).')) return;
+      try {
+        await api('POST', '/api/sstp/singbox-integration/disable');
+        await loadSstpSingboxState();
+      } catch (e) {
+        alert('Ошибка: ' + e.message);
+      }
     }
   </script>
 </body>

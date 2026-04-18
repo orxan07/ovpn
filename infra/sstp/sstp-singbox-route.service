@@ -1,0 +1,13 @@
+[Unit]
+Description=Route SSTP client traffic through sing-box (nftables)
+After=sing-box.service accel-ppp.service network-online.target
+Wants=sing-box.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/nft -f /etc/nftables.d/sstp-singbox.nft
+ExecStop=/usr/sbin/nft delete table inet sstp-singbox
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

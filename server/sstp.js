@@ -252,6 +252,143 @@ function getServerCert() {
   return pem;
 }
 
+// ── Интеграция SSTP↔sing-box (вкл/выкл из UI) ───────────
+
+const SINGBOX_INTEGRATION_NFT = '/etc/nftables.d/sstp-singbox.nft';
+const SINGBOX_INTEGRATION_UNIT = '/etc/systemd/system/sstp-singbox-route.service';
+
+const NFT_RULES = `#!/usr/sbin/nft -f
+# Managed by wg-admin (server/sstp.js). Do not edit by hand.
+table inet sstp-singbox
+delete table inet sstp-singbox
+
+table inet sstp-singbox {
+    chain prerouting_nat {
+        type nat hook prerouting priority dstnat; policy accept;
+        iifname != "sstp*" return
+        meta l4proto { tcp, udp } th dport 53 dnat ip to 172.19.0.2
+    }
+
+    chain prerouting_mark {
+        type filter hook prerouting priority mangle; policy accept;
+        iifname != "sstp*" return
+        ip daddr {
+            10.0.0.0/8,
+            172.16.0.0/12,
+            192.168.0.0/16,
+            169.254.0.0/16,
+            127.0.0.0/8
+        } return
+        meta mark set 0x00002023 ct mark set 0x00002023
+    }
+}
+`;
+
+const SYSTEMD_UNIT = `[Unit]
+Description=Route SSTP client traffic through sing-box (nftables)
+After=sing-box.service accel-ppp.service network-online.target
+Wants=sing-box.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/nft -f ${SINGBOX_INTEGRATION_NFT}
+ExecStop=/usr/sbin/nft delete table inet sstp-singbox
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+`;
+
+function getSingboxIntegrationStatus() {
+  // Активны ли наши правила в ядре
+  let nftActive = false;
+  try {
+    execSync('sudo nft list table inet sstp-singbox >/dev/null 2>&1');
+    nftActive = true;
+  } catch {}
+
+  const fileInstalled = (() => {
+    try { execSync(`sudo test -f ${SINGBOX_INTEGRATION_NFT}`); return true; }
+    catch { return false; }
+  })();
+
+  let serviceState = 'inactive';
+  try {
+    serviceState = execSync('sudo systemctl is-active sstp-singbox-route', { encoding: 'utf8' }).trim();
+  } catch (e) {
+    serviceState = (e.stdout || '').toString().trim() || 'inactive';
+  }
+
+  let serviceEnabled = false;
+  try {
+    const v = execSync('sudo systemctl is-enabled sstp-singbox-route', { encoding: 'utf8' }).trim();
+    serviceEnabled = v === 'enabled';
+  } catch {}
+
+  // Проверяем что sing-box доступен (sbtun + table 2022 default)
+  const sbtunUp = !!safeRun('ip -br link show sbtun 2>/dev/null');
+  const route2022 = safeRun('ip route show table 2022 2>/dev/null');
+  const route2022HasDefault = /^default via/m.test(route2022);
+
+  return {
+    active: nftActive && serviceState === 'active',
+    nftActive,
+    fileInstalled,
+    serviceState,
+    serviceEnabled,
+    prerequisites: {
+      sbtunUp,
+      route2022HasDefault,
+    },
+  };
+}
+
+function enableSingboxIntegration() {
+  // Pre-flight
+  if (!safeRun('ip -br link show sbtun 2>/dev/null')) {
+    throw new Error('Интерфейс sbtun не найден. sing-box не запущен или не использует tun.');
+  }
+
+  // Записать nft-конфиг
+  const tmpNft = `/tmp/sstp-singbox-${Date.now()}.nft`;
+  fs.writeFileSync(tmpNft, NFT_RULES);
+  try {
+    run(`sudo install -d /etc/nftables.d`);
+    run(`sudo install -m 644 ${tmpNft} ${SINGBOX_INTEGRATION_NFT}`);
+  } finally {
+    try { fs.unlinkSync(tmpNft); } catch {}
+  }
+
+  // Записать systemd unit
+  const tmpUnit = `/tmp/sstp-singbox-route-${Date.now()}.service`;
+  fs.writeFileSync(tmpUnit, SYSTEMD_UNIT);
+  try {
+    run(`sudo install -m 644 ${tmpUnit} ${SINGBOX_INTEGRATION_UNIT}`);
+  } finally {
+    try { fs.unlinkSync(tmpUnit); } catch {}
+  }
+
+  // Активировать
+  run('sudo systemctl daemon-reload');
+  run('sudo systemctl enable --now sstp-singbox-route');
+
+  // Убедиться что таблица применилась
+  const check = safeRun('sudo nft list table inet sstp-singbox 2>&1');
+  if (!check.includes('table inet sstp-singbox')) {
+    throw new Error('nft не применил правила: ' + check);
+  }
+
+  return getSingboxIntegrationStatus();
+}
+
+function disableSingboxIntegration() {
+  safeRun('sudo systemctl disable --now sstp-singbox-route');
+  safeRun('sudo nft delete table inet sstp-singbox');
+  safeRun(`sudo rm -f ${SINGBOX_INTEGRATION_NFT} ${SINGBOX_INTEGRATION_UNIT}`);
+  safeRun('sudo systemctl daemon-reload');
+  return getSingboxIntegrationStatus();
+}
+
 // ── Diagnostics: интеграция SSTP-трафика с sing-box ────
 
 function getIntegrationDiagnostics() {
@@ -344,4 +481,7 @@ module.exports = {
   getServerCert,
   getCertInfo,
   getIntegrationDiagnostics,
+  getSingboxIntegrationStatus,
+  enableSingboxIntegration,
+  disableSingboxIntegration,
 };
