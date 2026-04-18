@@ -76,6 +76,29 @@ const PRESETS = [
     ipCidr: [],
   },
   {
+    name: 'Anthropic / Claude',
+    domains: [
+      'anthropic.com',          // основной сайт + API (api.anthropic.com)
+      'claude.ai',              // веб-чат
+      'claudeusercontent.com',  // вложения / артефакты
+    ],
+    ipCidr: [],
+  },
+  {
+    name: 'Cursor',
+    domains: [
+      'cursor.com',             // основной сайт + auth + downloads
+      'cursor.sh',              // старый домен, всё ещё используется в API
+      'cursor.so',              // legacy
+      'cursorapi.com',          // API completions
+      'cursor-cdn.com',         // CDN бинарей и обновлений
+      // зависимости которые Cursor дёргает напрямую:
+      'openai.com',             // дублируется с OpenAI-пресетом, но оставим
+      'anthropic.com',          // дублируется с Claude-пресетом
+    ],
+    ipCidr: [],
+  },
+  {
     name: 'Netflix',
     // Все домены идут по SNI/HTTPS, поэтому списка доменов почти всегда хватает.
     domains: [

@@ -222,6 +222,8 @@ WireGuard конфиги и ключи хранятся в `/etc/wireguard/clien
 | Instagram / Facebook / Meta | instagram.com, fbcdn.net, ... | — |
 | Discord | discord.com, discordapp.com, ... | — |
 | OpenAI / ChatGPT | openai.com, chatgpt.com, ... | — |
+| Anthropic / Claude | anthropic.com, claude.ai, ... | — |
+| Cursor | cursor.com, cursor.sh, cursorapi.com, cursor-cdn.com, ... | — |
 | Netflix | netflix.com, nflxvideo.net, fast.com, ... | 12 диапазонов AS2906 (Open Connect) |
 
 IP-диапазоны нужны для звонков и медиа (WhatsApp, Telegram) — они используют прямые IP без DNS.
