@@ -6,12 +6,25 @@ const PRESETS = [
     name: 'Telegram',
     domains: [
       'telegram.org', 't.me', 'telegram.me', 'telegra.ph',
-      'telesco.pe', 'tdesktop.com',
+      'telesco.pe', 'tdesktop.com', 'telegram.dog',
+      'telegramdownload.com', 'telegram-cdn.org',
+      'comments.app', 'graph.org', 'quiz.directory',
+      'contest.com', 'fragment.com',
     ],
+    // Источник: https://core.telegram.org/resources/cidr.txt
+    // Telegram MTProto подключается по жёстко прописанным IP DC,
+    // поэтому без полного списка соединение быстро рвётся.
     ipCidr: [
-      '91.108.4.0/22', '91.108.8.0/22', '91.108.12.0/22',
-      '91.108.16.0/22', '91.108.20.0/22', '91.108.56.0/22',
+      '91.105.192.0/23',
+      '91.108.4.0/22',
+      '91.108.8.0/22',
+      '91.108.12.0/22',
+      '91.108.16.0/22',
+      '91.108.20.0/22',
+      '91.108.56.0/22',
+      '95.161.64.0/20',
       '149.154.160.0/20',
+      '185.76.151.0/24',
     ],
   },
   {
