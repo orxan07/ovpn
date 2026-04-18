@@ -9,6 +9,7 @@ const store = require('./store');
 const whitelist = require('./whitelist');
 const { PRESETS } = require('./presets');
 const diag = require('./diagnostics');
+const sstp = require('./sstp');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -219,7 +220,7 @@ app.get('/api/system', (req, res) => {
 
 // Перезапуск сервисов
 app.post('/api/system/restart/:service', (req, res) => {
-  const allowed = ['sing-box', 'wg-quick@wg0'];
+  const allowed = ['sing-box', 'wg-quick@wg0', 'accel-ppp'];
   const service = req.params.service;
   if (!allowed.includes(service)) return res.status(400).json({ error: 'Недопустимый сервис' });
   try {
@@ -248,6 +249,14 @@ app.get('/api/system/check', (req, res) => {
     results.wireguard = { ok: out === 'active', status: out };
   } catch {
     results.wireguard = { ok: false, status: 'inactive' };
+  }
+
+  // SSTP (accel-ppp) статус
+  try {
+    const out = execSync('sudo systemctl is-active accel-ppp', { encoding: 'utf8' }).trim();
+    results.sstp = { ok: out === 'active', status: out };
+  } catch {
+    results.sstp = { ok: false, status: 'inactive' };
   }
 
   // Outline — пробуем достучаться до shadowsocks сервера
@@ -332,6 +341,67 @@ app.delete('/api/whitelist/:domain', (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── SSTP (accel-ppp) ──────────────────────────────────
+
+app.get('/api/sstp/status', (req, res) => {
+  try { res.json(sstp.getStatus()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/sstp/users', (req, res) => {
+  try { res.json(sstp.getUsers()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Раскрытие пароля по запросу (для копирования клиенту)
+app.get('/api/sstp/users/:name/credentials', (req, res) => {
+  try {
+    const u = sstp.getUserWithPassword(req.params.name);
+    const status = sstp.getStatus();
+    res.json({
+      name: u.name,
+      password: u.password,
+      server: status.externalIp,
+      port: status.port,
+    });
+  } catch (e) { res.status(404).json({ error: e.message }); }
+});
+
+app.post('/api/sstp/users', (req, res) => {
+  try {
+    const { name, password } = req.body;
+    res.json(sstp.addUser(name, password));
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.patch('/api/sstp/users/:name', (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password) return res.status(400).json({ error: 'password обязателен' });
+    res.json(sstp.setPassword(req.params.name, password));
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.delete('/api/sstp/users/:name', (req, res) => {
+  try { res.json(sstp.removeUser(req.params.name)); }
+  catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.get('/api/sstp/sessions', (req, res) => {
+  try { res.json(sstp.getSessions()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/sstp/sessions/:ifname/disconnect', (req, res) => {
+  try { res.json(sstp.disconnectSession(req.params.ifname)); }
+  catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post('/api/sstp/restart', (req, res) => {
+  try { res.json(sstp.restart()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Diagnostics ───────────────────────────────────────

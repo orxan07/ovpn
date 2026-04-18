@@ -1,5 +1,16 @@
 node_modules/
 .env
+.env.*
 *.key
 *.pem
+*.crt
 .DS_Store
+
+# секреты VPN-клиентов: содержат приватные ключи / inline-сертификаты
+*.ovpn
+keenetic*.conf
+
+# локальные бэкапы / экспорты
+backups/
+*.tar.gz
+*.tgz

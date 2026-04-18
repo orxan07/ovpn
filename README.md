@@ -4,8 +4,10 @@
 
 ## Стек
 
-- **VPS**: MTS Cloud, Ubuntu
-- **VPN**: WireGuard (`wg0`, порт `443/UDP`)
+- **VPS**: MTS Cloud, Ubuntu 24.04
+- **VPN**:
+  - **WireGuard** (`wg0`, UDP/443) — для прямых WG-клиентов и sing-box pipeline
+  - **SSTP** (TCP/14942, `accel-ppp`) — для роутеров за DPI-операторами (например Keenetic Hopper за МТС). См. [`infra/sstp/`](infra/sstp/) и [`docs/dpi-bypass.md`](docs/dpi-bypass.md)
 - **Обход блокировок**: sing-box + Outline/Shadowsocks
 - **Панель**: Node.js + Express + vanilla JS SPA
 - **Домен**: `https://vpn.rehimli.info` (nginx + Let's Encrypt)
@@ -67,11 +69,39 @@ ovpn/
 │   ├── whitelist.js        # Редактор whitelist в /etc/sing-box/config.json
 │   └── presets.js          # Предустановки доменов и IP для сервисов
 ├── scripts/
-│   ├── setup-vps.sh        # Установка с нуля
+│   ├── setup-vps.sh        # Установка панели + WG с нуля
 │   └── deploy.sh           # Деплой обновлений
+├── infra/
+│   └── sstp/               # SSTP-сервер на accel-ppp (см. infra/sstp/README.md)
+│       ├── setup-sstp.sh
+│       ├── accel-ppp.conf.tpl
+│       ├── accel-ppp.service
+│       ├── firewall.sh
+│       └── users.sh
+├── docs/
+│   ├── dpi-bypass.md       # История: почему пришли к SSTP
+│   ├── keenetic-setup.md   # Настройка Keenetic Hopper как SSTP-клиента
+│   └── runbook.md          # Operational-команды для всех сервисов
 └── data/
     └── store.json          # Данные клиентов (создаётся автоматически)
 ```
+
+## SSTP для DPI-проблемных провайдеров
+
+Если оператор клиента (МТС, Билайн и т.п.) режет WireGuard и OpenVPN —
+поднимается SSTP-сервер поверх TLS, который для DPI выглядит как обычный HTTPS.
+
+```bash
+# на VPS
+cd /opt/ovpn/infra/sstp
+sudo bash setup-sstp.sh
+```
+
+Скрипт собирает `accel-ppp` из исходников, генерит self-signed cert,
+пишет конфиг, настраивает NAT/firewall, поднимает systemd-юнит и печатает
+готовые реквизиты для подключения. Подробности — [`infra/sstp/README.md`](infra/sstp/README.md).
+
+Настройка Keenetic-роутера как SSTP-клиента — [`docs/keenetic-setup.md`](docs/keenetic-setup.md).
 
 ## API
 

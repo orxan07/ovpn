@@ -1,0 +1,13 @@
+[Unit]
+Description=accel-ppp daemon (SSTP server)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/accel-pppd -c /etc/accel-ppp.conf -p /run/accel-pppd.pid
+Restart=always
+RestartSec=3
+LimitNOFILE=200000
+
+[Install]
+WantedBy=multi-user.target

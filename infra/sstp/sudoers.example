@@ -1,0 +1,21 @@
+# Drop-in для /etc/sudoers.d/wg-admin-sstp (chmod 440)
+#
+# Даёт пользователю, под которым работает Node-сервер админки (по умолчанию root,
+# но если ты переехал на отдельный sysuser — поменяй имя), право выполнять
+# нужные для управления SSTP команды без пароля.
+#
+# Если админка крутится от root (сейчас — да), этот файл не нужен.
+# Если переедешь на отдельный пользователь, например `wgadmin`:
+#
+#   sudo install -m 440 sudoers.example /etc/sudoers.d/wg-admin-sstp
+#   sudo visudo -c    # проверить синтаксис
+#
+# и заменить ниже `wgadmin` на реальное имя.
+
+wgadmin ALL=(root) NOPASSWD: /usr/sbin/accel-cmd *
+wgadmin ALL=(root) NOPASSWD: /bin/cat /etc/accel-ppp/chap-secrets
+wgadmin ALL=(root) NOPASSWD: /usr/bin/install -m 600 /tmp/sstp-secrets-* /etc/accel-ppp/chap-secrets
+wgadmin ALL=(root) NOPASSWD: /bin/systemctl restart accel-ppp
+wgadmin ALL=(root) NOPASSWD: /bin/systemctl is-active accel-ppp
+wgadmin ALL=(root) NOPASSWD: /bin/systemctl show accel-ppp *
+wgadmin ALL=(root) NOPASSWD: /bin/cat /etc/accel-ppp.conf
