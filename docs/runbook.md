@@ -77,25 +77,17 @@ sudo nginx -t && sudo systemctl reload nginx
    curl -4 https://ifconfig.me/ip      # должен показать IP VPS
    ```
 
-## Восстановление с нуля
+## Перезапуск всего «по очереди»
 
 Если всё лежит и непонятно, где именно:
 
 ```bash
-# 1. WireGuard
 sudo systemctl restart wg-quick@wg0
-
-# 2. SSTP
 sudo systemctl restart accel-ppp
-sudo bash /opt/ovpn/infra/sstp/firewall.sh   # переприменить iptables
-
-# 3. sing-box
+sudo bash /opt/wg-admin/infra/sstp/firewall.sh    # переприменить iptables (идемпотентно)
 sudo systemctl restart sing-box
-
-# 4. nginx
+sudo systemctl restart sstp-singbox-route         # интеграция SSTP↔sing-box
 sudo systemctl restart nginx
-
-# 5. Админка
 app restart
 ```
 
@@ -104,23 +96,25 @@ app restart
 ```bash
 sudo systemctl disable --now accel-ppp
 sudo rm -rf /etc/accel-ppp /etc/accel-ppp.conf /var/log/accel-ppp
-cd /opt/ovpn/infra/sstp     # путь к репо на VPS
+cd /opt/wg-admin/infra/sstp
 sudo bash setup-sstp.sh
 ```
 
 После этого на Keenetic заново вбить логин/пароль из вывода скрипта.
 
-## Что бэкапить
+## Бэкап / восстановление
 
-| Файл | Зачем |
-|------|-------|
-| `/etc/wireguard/wg0.conf` + `/etc/wireguard/clients/` | приватные ключи WG-клиентов |
-| `/etc/accel-ppp.conf` | конфиг SSTP |
-| `/etc/accel-ppp/chap-secrets` | пользователи SSTP (с паролями!) |
-| `/etc/accel-ppp/sstp/server.{crt,key}` | TLS-cert SSTP |
-| `/opt/wg-admin/data/store.json` | метаданные клиентов админки |
-| `/etc/sing-box/config.json` | whitelist |
-| `/etc/nginx/sites-available/*` | nginx (включая SSL-конфиг) |
-| `/etc/letsencrypt/` | LE-сертификаты |
+См. [`docs/disaster-recovery.md`](./disaster-recovery.md). Краткое:
 
-Простой `tar` всех этих путей раз в неделю + scp на локальную машину — достаточно.
+```bash
+# регулярный бэкап
+sudo bash /opt/wg-admin/scripts/backup.sh
+scp root@VPS:/root/vpn-backup-*.tar.gz ~/Backups/vpn/
+
+# полный переезд на новый VPS
+curl -fsSL https://raw.githubusercontent.com/orxan07/ovpn/main/scripts/bootstrap-vps.sh | bash -s -- --domain vpn.rehimli.info
+sudo bash /opt/wg-admin/scripts/restore.sh /root/vpn-backup-LATEST.tar.gz
+```
+
+Один tar.gz содержит ВСЁ: WG-ключи, SSTP пользователей и cert,
+sing-box whitelist, nft-правила интеграции, nginx + LE, сторэдж админки.

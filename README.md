@@ -69,22 +69,48 @@ ovpn/
 │   ├── whitelist.js        # Редактор whitelist в /etc/sing-box/config.json
 │   └── presets.js          # Предустановки доменов и IP для сервисов
 ├── scripts/
-│   ├── setup-vps.sh        # Установка панели + WG с нуля
-│   └── deploy.sh           # Деплой обновлений
+│   ├── setup-vps.sh         # Установка панели + WG с нуля
+│   ├── bootstrap-vps.sh     # Полный bootstrap: пакеты + setup-vps + setup-sstp
+│   ├── backup.sh            # Бэкап всего стека в один tar.gz
+│   ├── restore.sh           # Восстановление из бэкапа на новом VPS
+│   └── deploy.sh            # Деплой обновлений
 ├── infra/
-│   └── sstp/               # SSTP-сервер на accel-ppp (см. infra/sstp/README.md)
+│   └── sstp/                # SSTP-сервер на accel-ppp (см. infra/sstp/README.md)
 │       ├── setup-sstp.sh
 │       ├── accel-ppp.conf.tpl
 │       ├── accel-ppp.service
 │       ├── firewall.sh
-│       └── users.sh
+│       ├── users.sh
+│       ├── sstp-singbox.nft           # nft-правила: SSTP-трафик через sing-box
+│       ├── sstp-singbox-route.service # systemd unit для них
+│       ├── enable-singbox-integration.sh
+│       └── disable-singbox-integration.sh
 ├── docs/
-│   ├── dpi-bypass.md       # История: почему пришли к SSTP
-│   ├── keenetic-setup.md   # Настройка Keenetic Hopper как SSTP-клиента
-│   └── runbook.md          # Operational-команды для всех сервисов
+│   ├── dpi-bypass.md        # История: почему пришли к SSTP
+│   ├── keenetic-setup.md    # Настройка Keenetic Hopper как SSTP-клиента
+│   ├── runbook.md           # Operational-команды для всех сервисов
+│   └── disaster-recovery.md # План переезда на новый VPS
 └── data/
-    └── store.json          # Данные клиентов (создаётся автоматически)
+    └── store.json           # Данные клиентов (создаётся автоматически)
 ```
+
+## Перенос на другой VPS
+
+Один tar.gz файл — и всё: ключи WG, пользователи SSTP, TLS-cert SSTP, whitelist
+sing-box, nginx + LE, nft-интеграция, метаданные клиентов админки.
+
+```bash
+# регулярный бэкап (раз в неделю / по требованию)
+sudo bash /opt/wg-admin/scripts/backup.sh
+scp root@VPS:/root/vpn-backup-*.tar.gz ~/Backups/vpn/
+
+# на новом VPS — bootstrap + restore
+curl -fsSL https://raw.githubusercontent.com/orxan07/ovpn/main/scripts/bootstrap-vps.sh \
+  | bash -s -- --domain vpn.rehimli.info
+sudo bash /opt/wg-admin/scripts/restore.sh /root/vpn-backup-LATEST.tar.gz
+```
+
+Подробности — [`docs/disaster-recovery.md`](docs/disaster-recovery.md).
 
 ## SSTP для DPI-проблемных провайдеров
 
