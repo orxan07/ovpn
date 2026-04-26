@@ -49,7 +49,7 @@ echo "[6/8] Outline (/opt/outline) ..."
 
 echo "[7/8] systemd unit'ы (нестандартные) ..."
 mkdir -p "$WORK/etc/systemd/system"
-for u in accel-ppp.service sstp-singbox-route.service sing-box.service wg-admin.service outline.service; do
+for u in accel-ppp.service sstp-firewall.service sstp-singbox-route.service sing-box.service wg-admin.service outline.service; do
   if [ -f "/etc/systemd/system/$u" ]; then
     cp -a "/etc/systemd/system/$u" "$WORK/etc/systemd/system/"
   fi

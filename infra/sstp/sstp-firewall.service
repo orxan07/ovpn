@@ -1,0 +1,13 @@
+[Unit]
+Description=Apply SSTP firewall/NAT rules
+After=network-online.target
+Wants=network-online.target
+Before=accel-ppp.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env bash /opt/wg-admin/infra/sstp/firewall.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -205,6 +205,29 @@
       <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
           <div style="flex:1; min-width:300px;">
+            <h2 style="margin-bottom:6px;">Firewall/NAT для SSTP</h2>
+            <div class="muted" style="font-size:12px;">
+              После выключения VPS iptables-правила могут пропасть: порт открыт, но трафик
+              из туннеля <code>sstp+</code> не форвардится и не NAT-ится. Автозапуск ставит
+              systemd-юнит <code>sstp-firewall.service</code>, который восстанавливает правила
+              при старте сервера.
+            </div>
+          </div>
+          <div id="sstpFirewallState" style="text-align:right; display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
+            <span class="muted">Загрузка...</span>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-primary btn-sm" onclick="applySstpFirewall()">Применить firewall сейчас</button>
+          <button class="btn btn-success btn-sm" onclick="enableSstpFirewallAutostart()">Включить автовосстановление</button>
+          <button class="btn btn-danger btn-sm" onclick="disableSstpFirewallAutostart()">Отключить автозапуск</button>
+          <button class="btn btn-ghost btn-sm" onclick="loadSstpFirewallState()">Обновить статус</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
+          <div style="flex:1; min-width:300px;">
             <h2 style="margin-bottom:6px;">Интеграция с sing-box (whitelist для SSTP)</h2>
             <div class="muted" style="font-size:12px;">
               По умолчанию SSTP-трафик идёт напрямую через WAN сервера, поэтому ChatGPT и т.п.
@@ -1622,6 +1645,7 @@
       } catch (e) {
         document.getElementById('sstpStatusLine').innerHTML = `<span class="error">${e.message}</span>`;
       }
+      loadSstpFirewallState();
       loadSstpSingboxState();
     }
 
@@ -1883,6 +1907,66 @@
       navigator.clipboard.writeText(_sstpIntegrationText).then(() => {
         alert('Скопировано');
       });
+    }
+
+    async function loadSstpFirewallState() {
+      const el = document.getElementById('sstpFirewallState');
+      if (!el) return;
+      try {
+        const s = await api('GET', '/api/sstp/firewall');
+        const badge = s.ok
+          ? `<span class="badge active">Правила активны</span>`
+          : `<span class="badge inactive">Правила неполные</span>`;
+        const auto = s.serviceEnabled
+          ? '<span style="color:#4ade80">автозапуск ✓</span>'
+          : '<span style="color:#f87171">автозапуск ✗</span>';
+        const rule = (label, ok) =>
+          `<span style="color:${ok ? '#4ade80' : '#f87171'}">${label} ${ok ? '✓' : '✗'}</span>`;
+        el.innerHTML = `
+          ${badge}
+          <div style="font-size:11px;">${auto}</div>
+          <div style="font-size:11px; display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+            ${rule('INPUT', s.rules?.inputPort)}
+            ${rule('FORWARD in', s.rules?.forwardIn)}
+            ${rule('FORWARD out', s.rules?.forwardOut)}
+            ${rule('NAT', s.rules?.masquerade)}
+          </div>
+          <div class="muted" style="font-size:11px;">${s.sstpNet} → ${s.wanIf}, systemd: ${s.serviceState}</div>
+        `;
+      } catch (e) {
+        el.innerHTML = `<span class="error">${e.message}</span>`;
+      }
+    }
+
+    async function applySstpFirewall() {
+      try {
+        await api('POST', '/api/sstp/firewall/apply');
+        await loadSstpFirewallState();
+        await loadSstpIntegration();
+        alert('Firewall/NAT правила SSTP применены.');
+      } catch (e) {
+        alert('Ошибка: ' + e.message);
+      }
+    }
+
+    async function enableSstpFirewallAutostart() {
+      try {
+        await api('POST', '/api/sstp/firewall/autostart/enable');
+        await loadSstpFirewallState();
+        alert('Автовосстановление включено. После перезапуска VPS sstp-firewall.service восстановит iptables-правила.');
+      } catch (e) {
+        alert('Ошибка: ' + e.message);
+      }
+    }
+
+    async function disableSstpFirewallAutostart() {
+      if (!confirm('Отключить автозапуск sstp-firewall.service? Текущие правила из iptables не удаляются.')) return;
+      try {
+        await api('POST', '/api/sstp/firewall/autostart/disable');
+        await loadSstpFirewallState();
+      } catch (e) {
+        alert('Ошибка: ' + e.message);
+      }
     }
 
     async function loadSstpSingboxState() {

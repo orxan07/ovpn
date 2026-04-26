@@ -92,7 +92,7 @@ echo "[8/8] Reload systemd + start services ..."
 systemctl daemon-reload
 
 # Подымаем по очереди и не падаем если какого-то юнита нет
-for svc in nginx wg-quick@wg0 wg-quick@wg1 sing-box accel-ppp wg-admin sstp-singbox-route outline; do
+for svc in nginx wg-quick@wg0 wg-quick@wg1 sing-box sstp-firewall accel-ppp wg-admin sstp-singbox-route outline; do
   if systemctl list-unit-files | grep -q "^${svc}\."; then
     echo "  enable+restart $svc"
     systemctl enable "$svc" 2>/dev/null || true

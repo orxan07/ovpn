@@ -14,7 +14,7 @@
 | `/etc/accel-ppp/`, `/etc/accel-ppp.conf` | SSTP-сервер: TLS-cert и пользователи |
 | `/etc/nginx/`, `/etc/letsencrypt/` | TLS для админки |
 | `/etc/nftables.d/`, `/etc/nftables.conf` | в т.ч. `sstp-singbox.nft` (интеграция SSTP↔sing-box) |
-| `/etc/systemd/system/*.service` | `accel-ppp`, `sstp-singbox-route`, `wg-admin`, `sing-box`, `outline` |
+| `/etc/systemd/system/*.service` | `accel-ppp`, `sstp-firewall`, `sstp-singbox-route`, `wg-admin`, `sing-box`, `outline` |
 | `/etc/sudoers.d/wg-admin` | права для Node-процесса |
 | `/opt/wg-admin/data/store.json` | метаданные клиентов админки |
 | `/opt/wg-admin/server/.env` | AUTH_TOKEN |
@@ -91,7 +91,7 @@ sudo bash /opt/wg-admin/scripts/restore.sh /root/vpn-backup-LATEST.tar.gz
 Скрипт:
 - разворачивает все конфиги поверх свежей инсталляции,
 - перезапускает `wg-admin`, `sing-box`, `accel-ppp`, `nginx`, `wg-quick@wg0`,
-- если был `sstp-singbox-route` — поднимает и его.
+- если были `sstp-firewall` и `sstp-singbox-route` — поднимает и их.
 
 ### Шаг 5 — Проверка
 

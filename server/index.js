@@ -404,6 +404,27 @@ app.post('/api/sstp/restart', (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Firewall/NAT для SSTP. Эти правила runtime-only и могут пропасть после poweroff VPS.
+app.get('/api/sstp/firewall', (req, res) => {
+  try { res.json(sstp.getFirewallStatus()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/sstp/firewall/apply', (req, res) => {
+  try { res.json(sstp.applyFirewallRules()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/sstp/firewall/autostart/enable', (req, res) => {
+  try { res.json(sstp.enableFirewallAutostart()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/sstp/firewall/autostart/disable', (req, res) => {
+  try { res.json(sstp.disableFirewallAutostart()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Скачать TLS-сертификат сервера (для импорта в Trusted Root на Windows и т.п.)
 app.get('/api/sstp/cert', (req, res) => {
   try {

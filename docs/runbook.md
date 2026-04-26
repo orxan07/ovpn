@@ -85,6 +85,7 @@ sudo nginx -t && sudo systemctl reload nginx
 sudo systemctl restart wg-quick@wg0
 sudo systemctl restart accel-ppp
 sudo bash /opt/wg-admin/infra/sstp/firewall.sh    # переприменить iptables (идемпотентно)
+sudo systemctl enable --now sstp-firewall         # чтобы firewall переживал poweroff/reboot
 sudo systemctl restart sing-box
 sudo systemctl restart sstp-singbox-route         # интеграция SSTP↔sing-box
 sudo systemctl restart nginx

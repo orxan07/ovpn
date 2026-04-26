@@ -10,11 +10,15 @@
 const { execSync } = require('child_process');
 const crypto = require('crypto');
 const fs = require('fs');
+const path = require('path');
 
 const CHAP_SECRETS = '/etc/accel-ppp/chap-secrets';
 const CONF = '/etc/accel-ppp.conf';
 const SERVER_CERT = '/etc/accel-ppp/sstp/server.crt';
 const SERVICE = 'accel-ppp';
+const FIREWALL_SERVICE = 'sstp-firewall';
+const FIREWALL_UNIT = '/etc/systemd/system/sstp-firewall.service';
+const FIREWALL_SCRIPT = path.resolve(__dirname, '..', 'infra/sstp/firewall.sh');
 
 function run(cmd, opts = {}) {
   return execSync(cmd, { encoding: 'utf8', ...opts }).toString();
@@ -22,6 +26,15 @@ function run(cmd, opts = {}) {
 
 function safeRun(cmd) {
   try { return run(cmd).trim(); } catch { return ''; }
+}
+
+function commandOk(cmd) {
+  try {
+    execSync(cmd, { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function readSecrets() {
@@ -239,8 +252,100 @@ function readExternalIp() {
 }
 
 function restart() {
+  // После hard poweroff runtime iptables-правила могут отсутствовать.
+  // Перед рестартом accel-ppp всегда восстанавливаем forwarding/NAT.
+  applyFirewallRules();
   run(`sudo systemctl restart ${SERVICE}`);
   return { ok: true };
+}
+
+// ── Firewall/NAT автозапуск для SSTP ────────────────────
+
+function getFirewallStatus() {
+  const port = readPort() || 14942;
+  const sstpNet = '10.27.0.0/24';
+  const wanIf = safeRun(`ip route show default | awk '/default/ {print $5; exit}'`) || 'enp2s0';
+
+  const rules = {
+    inputPort: commandOk(`sudo iptables -C INPUT -p tcp --dport ${port} -j ACCEPT`),
+    forwardIn: commandOk('sudo iptables -C FORWARD -i sstp+ -j ACCEPT'),
+    forwardOut: commandOk('sudo iptables -C FORWARD -o sstp+ -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT'),
+    masquerade: commandOk(`sudo iptables -t nat -C POSTROUTING -s ${sstpNet} -o ${wanIf} -j MASQUERADE`),
+  };
+
+  let serviceState = 'inactive';
+  try {
+    serviceState = execSync(`sudo systemctl is-active ${FIREWALL_SERVICE}`, { encoding: 'utf8' }).trim();
+  } catch (e) {
+    serviceState = (e.stdout || '').toString().trim() || 'inactive';
+  }
+
+  let serviceEnabled = false;
+  try {
+    serviceEnabled = execSync(`sudo systemctl is-enabled ${FIREWALL_SERVICE}`, { encoding: 'utf8' }).trim() === 'enabled';
+  } catch {}
+
+  return {
+    ok: Object.values(rules).every(Boolean),
+    port,
+    sstpNet,
+    wanIf,
+    rules,
+    serviceState,
+    serviceEnabled,
+    unitInstalled: commandOk(`sudo test -f ${FIREWALL_UNIT}`),
+    scriptPath: FIREWALL_SCRIPT,
+  };
+}
+
+function applyFirewallRules() {
+  if (!fs.existsSync(FIREWALL_SCRIPT)) {
+    throw new Error(`Не найден firewall.sh: ${FIREWALL_SCRIPT}`);
+  }
+  run(`sudo /usr/bin/env bash ${FIREWALL_SCRIPT}`);
+  return getFirewallStatus();
+}
+
+function firewallUnitText() {
+  return `[Unit]
+Description=Apply SSTP firewall/NAT rules
+After=network-online.target
+Wants=network-online.target
+Before=accel-ppp.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env bash ${FIREWALL_SCRIPT}
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+`;
+}
+
+function enableFirewallAutostart() {
+  if (!fs.existsSync(FIREWALL_SCRIPT)) {
+    throw new Error(`Не найден firewall.sh: ${FIREWALL_SCRIPT}`);
+  }
+
+  const tmpUnit = `/tmp/sstp-firewall-${Date.now()}.service`;
+  fs.writeFileSync(tmpUnit, firewallUnitText());
+  try {
+    run(`sudo install -m 644 ${tmpUnit} ${FIREWALL_UNIT}`);
+  } finally {
+    try { fs.unlinkSync(tmpUnit); } catch {}
+  }
+
+  run('sudo systemctl daemon-reload');
+  run(`sudo systemctl enable --now ${FIREWALL_SERVICE}`);
+  return getFirewallStatus();
+}
+
+function disableFirewallAutostart() {
+  safeRun(`sudo systemctl disable --now ${FIREWALL_SERVICE}`);
+  safeRun(`sudo rm -f ${FIREWALL_UNIT}`);
+  safeRun('sudo systemctl daemon-reload');
+  return getFirewallStatus();
 }
 
 function getServerCert() {
@@ -480,6 +585,10 @@ module.exports = {
   restart,
   getServerCert,
   getCertInfo,
+  getFirewallStatus,
+  applyFirewallRules,
+  enableFirewallAutostart,
+  disableFirewallAutostart,
   getIntegrationDiagnostics,
   getSingboxIntegrationStatus,
   enableSingboxIntegration,

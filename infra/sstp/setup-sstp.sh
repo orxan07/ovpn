@@ -172,8 +172,23 @@ EOF
 }
 
 write_systemd() {
-  log "Installing systemd unit..."
+  log "Installing systemd units..."
   install -m 644 "$REPO_DIR/accel-ppp.service" /etc/systemd/system/accel-ppp.service
+  cat > /etc/systemd/system/sstp-firewall.service <<EOF
+[Unit]
+Description=Apply SSTP firewall/NAT rules
+After=network-online.target
+Wants=network-online.target
+Before=accel-ppp.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env bash $REPO_DIR/firewall.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
   systemctl daemon-reload
 }
 
@@ -195,6 +210,9 @@ setup_firewall() {
 }
 
 start_service() {
+  log "Enabling and starting sstp-firewall..."
+  systemctl enable --now sstp-firewall >/dev/null
+
   log "Enabling and starting accel-ppp..."
   systemctl enable --now accel-ppp >/dev/null
   sleep 2

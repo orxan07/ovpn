@@ -80,6 +80,7 @@ ovpn/
 │       ├── accel-ppp.conf.tpl
 │       ├── accel-ppp.service
 │       ├── firewall.sh
+│       ├── sstp-firewall.service       # systemd unit: восстановить iptables после reboot
 │       ├── users.sh
 │       ├── sstp-singbox.nft           # nft-правила: SSTP-трафик через sing-box
 │       ├── sstp-singbox-route.service # systemd unit для них

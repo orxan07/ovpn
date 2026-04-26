@@ -21,6 +21,7 @@ SSTP (Secure Socket Tunneling Protocol) — VPN-протокол поверх **
 | `accel-ppp.conf.tpl` | Справочный шаблон конфига `accel-ppp` (фактический пишется setup-скриптом) |
 | `accel-ppp.service` | systemd-юнит |
 | `firewall.sh` | Идемпотентные iptables-правила для пере-применения после ребута |
+| `sstp-firewall.service` | systemd-юнит автоприменения `firewall.sh` после старта VPS |
 | `users.sh` | Управление пользователями SSTP (`list / add / remove / passwd`) |
 | `sudoers.example` | Пример sudoers-правил, если админка крутится не от root |
 
@@ -73,7 +74,8 @@ sudo SSTP_PORT=14942 \
 - кнопка **Перезапустить**,
 - таблица активных сессий с кнопкой **Отключить**,
 - CRUD пользователей: добавить (с автогенерацией пароля), сменить пароль, удалить,
-- кнопка **Реквизиты** — модалка с готовой памяткой `Сервер / Логин / Пароль / MTU` для копирования клиенту.
+- кнопка **Реквизиты** — модалка с готовой памяткой `Сервер / Логин / Пароль / MTU` для копирования клиенту,
+- блок **Firewall/NAT для SSTP** — применить правила сейчас и включить автозапуск `sstp-firewall.service`.
 
 Под капотом — модуль `server/sstp.js` + эндпоинты `/api/sstp/*`. Если Node работает не от `root`, нужно положить sudoers-файл (`sudoers.example`).
 
@@ -115,6 +117,9 @@ sudo tail -f /var/log/accel-ppp/accel-ppp.log
 
 # переприменить firewall-правила (после reboot, если нет iptables-persistent)
 sudo bash firewall.sh
+
+# включить автоприменение firewall-правил после старта VPS
+sudo systemctl enable --now sstp-firewall
 ```
 
 ---
@@ -153,6 +158,7 @@ Self-signed сертификат: импортировать `server.crt` в Tru
 | `/etc/accel-ppp/sstp/server.key` | приватный ключ |
 | `/etc/accel-ppp/sstp/server.pem` | combined PEM (cert+key) — используется accel-ppp |
 | `/etc/systemd/system/accel-ppp.service` | systemd-юнит |
+| `/etc/systemd/system/sstp-firewall.service` | systemd-юнит автоприменения `firewall.sh` |
 | `/var/log/accel-ppp/accel-ppp.log` | основной лог |
 | `/usr/sbin/accel-pppd` | бинарь (build из `/usr/local/src/accel-ppp`) |
 
