@@ -9,7 +9,7 @@ const PRESETS = [
       'telesco.pe', 'tdesktop.com', 'telegram.dog',
       'telegramdownload.com', 'telegram-cdn.org',
       'comments.app', 'graph.org', 'quiz.directory',
-      'contest.com', 'fragment.com',
+      'contest.com', 'fragment.com', 'tx.me',
     ],
     // Источник: https://core.telegram.org/resources/cidr.txt
     // Telegram MTProto подключается по жёстко прописанным IP DC,
@@ -25,13 +25,30 @@ const PRESETS = [
       '95.161.64.0/20',
       '149.154.160.0/20',
       '185.76.151.0/24',
+      '2001:b28:f23d::/48',
+      '2001:b28:f23f::/48',
+      '2001:67c:4e8::/48',
+      '2001:b28:f23c::/48',
+      '2a0a:f280::/32',
     ],
   },
   {
     name: 'YouTube',
     domains: [
-      'youtube.com', 'youtu.be', 'ytimg.com',
-      'googlevideo.com', 'youtubei.googleapis.com',
+      'youtube.com',
+      'youtu.be',
+      'youtube-nocookie.com',
+      'yt.be',
+      'ytimg.com',              // thumbnails: i.ytimg.com, img.youtube.com
+      'ggpht.com',              // avatars/thumbnails in mobile app: yt3.ggpht.com
+      'googlevideo.com',        // video CDN
+      'youtubei.googleapis.com',
+      'youtube.googleapis.com',
+      'googleapis.com',
+      'googleusercontent.com',  // lh3.googleusercontent.com and similar image hosts
+      'gstatic.com',
+      'google.com',             // accounts / consent / mobile metadata
+      'google.ru',
     ],
     ipCidr: [],
   },
@@ -56,9 +73,37 @@ const PRESETS = [
     domains: [
       'instagram.com', 'cdninstagram.com', 'ig.me', 'threads.net',
       'facebook.com', 'facebook.net', 'fb.com', 'fbsbx.com',
-      'fbcdn.net', 'meta.com',
+      'fbcdn.net', 'meta.com', 'm.me', 'messenger.com',
+      'accountkit.com', 'facebook-hardware.com', 'facebookmail.com',
+      'internet.org', 'oculus.com', 'oculuscdn.com', 'rocksdb.org',
+      'workplace.com', 'workrooms.com',
     ],
-    ipCidr: [],
+    // Meta mobile apps and CDN often use direct IP/QUIC flows, not just SNI.
+    // AS32934 major IPv4 ranges. Keep broad enough for Instagram media/CDN.
+    ipCidr: [
+      '31.13.24.0/21',
+      '31.13.64.0/18',
+      '31.13.96.0/19',
+      '45.64.40.0/22',
+      '57.144.0.0/14',
+      '66.220.144.0/20',
+      '69.63.176.0/20',
+      '69.171.224.0/19',
+      '74.119.76.0/22',
+      '102.132.96.0/20',
+      '103.4.96.0/22',
+      '129.134.0.0/17',
+      '157.240.0.0/17',
+      '157.240.192.0/18',
+      '163.70.128.0/17',
+      '173.252.64.0/18',
+      '179.60.192.0/22',
+      '185.60.216.0/22',
+      '185.89.216.0/22',
+      '204.15.20.0/22',
+      '2a03:2880::/32',
+      '2620:0:1c00::/40',
+    ],
   },
   {
     name: 'Discord',
@@ -87,14 +132,30 @@ const PRESETS = [
   {
     name: 'Cursor',
     domains: [
-      'cursor.com',             // основной сайт + auth + downloads
-      'cursor.sh',              // старый домен, всё ещё используется в API
+      'cursor.com',             // сайт, dashboard, api.cursor.com
+      'cursor.sh',              // api2/api3/api4/repo42/authenticate/authenticator
       'cursor.so',              // legacy
-      'cursorapi.com',          // API completions
+      'cursorapi.com',          // marketplace.cursorapi.com
       'cursor-cdn.com',         // CDN бинарей и обновлений
+      'anysphere.co',           // компания/служебные auth/telemetry endpoints
+      'anysphere.com',
+      // VS Code marketplace/update dependencies, used by Cursor for extensions.
+      'marketplace.visualstudio.com',
+      'gallery.vsassets.io',
+      'update.code.visualstudio.com',
+      'vscode.download.prss.microsoft.com',
+      'vscode-unpkg.net',
+      'open-vsx.org',
+      // Часто нужны для расширений, MCP, авторизации и работы с репозиториями.
+      'github.com',
+      'githubusercontent.com',
+      'githubassets.com',
+      'githubcopilot.com',
+      'github.dev',
       // зависимости которые Cursor дёргает напрямую:
       'openai.com',             // дублируется с OpenAI-пресетом, но оставим
       'anthropic.com',          // дублируется с Claude-пресетом
+      'claude.ai',
     ],
     ipCidr: [],
   },
