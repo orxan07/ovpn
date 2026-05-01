@@ -74,6 +74,8 @@ const PRESETS = [
       'instagram.com', 'cdninstagram.com', 'ig.me', 'threads.net',
       'facebook.com', 'facebook.net', 'fb.com', 'fbsbx.com',
       'fbcdn.net', 'meta.com', 'm.me', 'messenger.com',
+      'static.cdninstagram.com', 'scontent.cdninstagram.com',
+      'video.cdninstagram.com', 'instagram.fna.fbcdn.net',
       'accountkit.com', 'facebook-hardware.com', 'facebookmail.com',
       'internet.org', 'oculus.com', 'oculuscdn.com', 'rocksdb.org',
       'workplace.com', 'workrooms.com',
@@ -134,8 +136,18 @@ const PRESETS = [
     domains: [
       'cursor.com',             // сайт, dashboard, api.cursor.com
       'cursor.sh',              // api2/api3/api4/repo42/authenticate/authenticator
+      'api2.cursor.sh',         // main API / chat
+      'api3.cursor.sh',         // Cursor Tab
+      'api4.cursor.sh',         // Cursor Tab
+      'repo42.cursor.sh',       // codebase indexing
+      'authenticate.cursor.sh',
+      'authenticator.cursor.sh',
+      'us-asia.gcpp.cursor.sh',
+      'us-eu.gcpp.cursor.sh',
+      'us-only.gcpp.cursor.sh',
       'cursor.so',              // legacy
       'cursorapi.com',          // marketplace.cursorapi.com
+      'marketplace.cursorapi.com',
       'cursor-cdn.com',         // CDN бинарей и обновлений
       'anysphere.co',           // компания/служебные auth/telemetry endpoints
       'anysphere.com',

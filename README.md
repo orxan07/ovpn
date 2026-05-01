@@ -220,11 +220,11 @@ WireGuard конфиги и ключи хранятся в `/etc/wireguard/clien
 | Telegram | telegram.org, t.me, ... | IPv4/IPv6 диапазоны из официального `cidr.txt` |
 | YouTube | youtube.com, ytimg.com, ggpht.com, googlevideo.com, googleusercontent.com, ... | — |
 | WhatsApp | whatsapp.com, wa.me, ... | 16 диапазонов Meta |
-| Instagram / Facebook / Meta | instagram.com, fbcdn.net, cdninstagram.com, ... | основные диапазоны AS32934 Meta |
+| Instagram / Facebook / Meta | instagram.com, static.cdninstagram.com, fbcdn.net, cdninstagram.com, ... | основные диапазоны AS32934 Meta |
 | Discord | discord.com, discordapp.com, ... | — |
 | OpenAI / ChatGPT | openai.com, chatgpt.com, ... | — |
 | Anthropic / Claude | anthropic.com, claude.ai, ... | — |
-| Cursor | cursor.com, cursor.sh, cursorapi.com, cursor-cdn.com, VS Code/GitHub deps, ... | — |
+| Cursor | api2.cursor.sh, api3.cursor.sh, repo42.cursor.sh, cursorapi.com, cursor-cdn.com, VS Code/GitHub deps, ... | — |
 | Netflix | netflix.com, nflxvideo.net, fast.com, ... | 12 диапазонов AS2906 (Open Connect) |
 
 IP-диапазоны нужны для звонков и медиа (WhatsApp, Telegram) — они используют прямые IP без DNS.
