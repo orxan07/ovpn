@@ -212,7 +212,8 @@
             </div>
           </div>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button class="btn btn-ghost btn-sm" onclick="loadSstpLogs()">Показать последние логи</button>
+            <button class="btn btn-ghost btn-sm" onclick="loadSstpLogs()">Показать все SSTP-логи</button>
+            <button class="btn btn-ghost btn-sm" onclick="loadSstpVpsDiagnostics()">Диагностика VPS/SSTP</button>
             <button class="btn btn-danger btn-sm" onclick="clearSstpLogs()">Очистить SSTP-логи</button>
             <button class="btn btn-danger btn-sm" onclick="clearVpnLogs()">Очистить VPN-логи</button>
           </div>
@@ -1896,9 +1897,35 @@
       out.textContent = 'Загрузка логов...';
       try {
         const data = await api('GET', `/api/sstp/logs?lines=${lines}`);
-        out.textContent = `Файл: ${data.path}\nПоследние строк: ${data.lines}\n\n${data.text || '(пусто)'}`;
+        out.textContent = `Каталог: ${data.path}\nПоследние строк на файл: ${data.lines}\n\n${data.text || '(пусто)'}`;
       } catch (e) {
         out.textContent = 'Ошибка загрузки логов: ' + e.message;
+      }
+    }
+
+    async function loadSstpVpsDiagnostics() {
+      const out = document.getElementById('sstpLogsOut');
+      out.style.display = 'block';
+      out.textContent = 'Собираю диагностику VPS/SSTP...';
+      try {
+        const d = await api('GET', '/api/sstp/vps-diagnostics');
+        const sections = [
+          ['SSTP status', JSON.stringify(d.status, null, 2)],
+          ['Active sessions', JSON.stringify(d.sessions, null, 2)],
+          ['Listener on tcp/14942', d.listener],
+          ['accel-ppp processes', d.accelProcesses],
+          ['systemctl status accel-ppp', d.service],
+          ['journalctl -u accel-ppp', d.recentJournal],
+          ['/etc/accel-ppp.conf [sstp]', d.configSstp],
+          ['/etc/accel-ppp.conf [log]', d.configLog],
+          ['TLS certificate', d.certInfo],
+          ['SSTP log files', d.logs?.text],
+        ];
+        out.textContent = sections
+          .map(([title, body]) => `===== ${title} =====\n${body || '(пусто)'}`)
+          .join('\n\n');
+      } catch (e) {
+        out.textContent = 'Ошибка диагностики VPS/SSTP: ' + e.message;
       }
     }
 

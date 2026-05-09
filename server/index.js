@@ -414,6 +414,11 @@ app.get('/api/sstp/logs', (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+app.get('/api/sstp/vps-diagnostics', (req, res) => {
+  try { res.json(sstp.getVpsDiagnostics()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/sstp/logs/clear', (req, res) => {
   try { res.json(sstp.clearLogs()); }
   catch (e) { res.status(500).json({ error: e.message }); }

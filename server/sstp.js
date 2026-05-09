@@ -267,12 +267,38 @@ function restart() {
 
 function getLogs(lines = 200) {
   const n = Math.max(1, Math.min(Number(lines) || 200, 2000));
-  const text = safeRun(`sudo test -f ${LOG_FILE} && sudo tail -n ${n} ${LOG_FILE} 2>&1 || true`);
+  const files = [
+    `${LOG_DIR}/accel-ppp.log`,
+    `${LOG_DIR}/auth-fail.log`,
+    `${LOG_DIR}/core.log`,
+    `${LOG_DIR}/emerg.log`,
+  ];
+  const sections = files.map(file => {
+    const text = safeRun(`sudo test -f ${file} && sudo tail -n ${n} ${file} 2>&1 || true`);
+    return `===== ${file} =====\n${text || '(пусто или файл не найден)'}`;
+  });
+
   return {
     ok: true,
-    path: LOG_FILE,
+    path: LOG_DIR,
     lines: n,
-    text: text || '(лог пустой или файл не найден)',
+    files,
+    text: sections.join('\n\n'),
+  };
+}
+
+function getVpsDiagnostics() {
+  return {
+    status: getStatus(),
+    sessions: getSessions(),
+    listener: safeRun('sudo ss -lntp sport = :14942 2>&1 || sudo ss -lntp | grep ":14942" || true'),
+    accelProcesses: safeRun('ps -eo pid,ppid,stat,comm,args | grep -E "[a]ccel-ppp|[a]ccel-cmd" || true'),
+    service: safeRun(`sudo systemctl status ${SERVICE} --no-pager -l 2>&1 || true`),
+    recentJournal: safeRun(`sudo journalctl -u ${SERVICE} --no-pager -n 120 --output=short-iso 2>&1 || true`),
+    configSstp: safeRun(`sudo awk '/^\\[sstp\\]/{flag=1} /^\\[/{if(flag && $0!="[sstp]") flag=0} flag{print}' ${CONF} 2>&1 || true`),
+    configLog: safeRun(`sudo awk '/^\\[log\\]/{flag=1} /^\\[/{if(flag && $0!="[log]") flag=0} flag{print}' ${CONF} 2>&1 || true`),
+    certInfo: safeRun(`sudo openssl x509 -in ${SERVER_CERT} -noout -subject -issuer -dates -fingerprint -sha256 -ext subjectAltName 2>&1 || true`),
+    logs: getLogs(120),
   };
 }
 
@@ -691,6 +717,7 @@ module.exports = {
   disconnectSession,
   restart,
   getLogs,
+  getVpsDiagnostics,
   clearLogs,
   clearVpnLogs,
   getServerCert,
