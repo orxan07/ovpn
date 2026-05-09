@@ -404,6 +404,11 @@ app.post('/api/sstp/restart', (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+app.post('/api/sstp/recover', (req, res) => {
+  try { res.json(sstp.recoverAfterVpsResume()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Firewall/NAT для SSTP. Эти правила runtime-only и могут пропасть после poweroff VPS.
 app.get('/api/sstp/firewall', (req, res) => {
   try { res.json(sstp.getFirewallStatus()); }

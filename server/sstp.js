@@ -494,6 +494,72 @@ function disableSingboxIntegration() {
   return getSingboxIntegrationStatus();
 }
 
+// ── Recovery после suspend/блокировки VPS ───────────────
+
+function recoveryStep(steps, label, fn) {
+  try {
+    const result = fn();
+    steps.push({ label, ok: true });
+    return result;
+  } catch (e) {
+    steps.push({ label, ok: false, error: e.message });
+    return null;
+  }
+}
+
+function recoverAfterVpsResume() {
+  const steps = [];
+
+  recoveryStep(steps, 'Включить автозапуск sing-box, WireGuard и SSTP', () => {
+    run('sudo systemctl enable sing-box wg-quick@wg0 accel-ppp');
+  });
+
+  recoveryStep(steps, 'Перезапустить sing-box и восстановить sbtun/table 2022', () => {
+    run('sudo systemctl restart sing-box');
+    run(
+      'for i in $(seq 1 12); do ' +
+      'ip -br link show sbtun >/dev/null 2>&1 && ip route show table 2022 2>/dev/null | grep -q "^default via" && exit 0; ' +
+      'sleep 1; ' +
+      'done; echo "sbtun/table 2022 не восстановились" >&2; exit 1',
+      { timeout: 15000 }
+    );
+  });
+
+  recoveryStep(steps, 'Перезапустить WireGuard wg0', () => {
+    run('sudo systemctl restart wg-quick@wg0');
+  });
+
+  recoveryStep(steps, 'Включить и применить автовосстановление SSTP firewall/NAT', () => {
+    enableFirewallAutostart();
+  });
+
+  recoveryStep(steps, 'Перезапустить accel-ppp (SSTP)', () => {
+    run(`sudo systemctl restart ${SERVICE}`);
+  });
+
+  recoveryStep(steps, 'Включить интеграцию SSTP -> sing-box', () => {
+    enableSingboxIntegration();
+  });
+
+  const firewall = (() => {
+    try { return getFirewallStatus(); } catch (e) { return { error: e.message }; }
+  })();
+  const singboxIntegration = (() => {
+    try { return getSingboxIntegrationStatus(); } catch (e) { return { error: e.message }; }
+  })();
+  const status = (() => {
+    try { return getStatus(); } catch (e) { return { error: e.message }; }
+  })();
+
+  return {
+    ok: steps.every(s => s.ok) && firewall.ok && singboxIntegration.active && status.ok,
+    steps,
+    firewall,
+    singboxIntegration,
+    status,
+  };
+}
+
 // ── Diagnostics: интеграция SSTP-трафика с sing-box ────
 
 function getIntegrationDiagnostics() {
@@ -593,4 +659,5 @@ module.exports = {
   getSingboxIntegrationStatus,
   enableSingboxIntegration,
   disableSingboxIntegration,
+  recoverAfterVpsResume,
 };

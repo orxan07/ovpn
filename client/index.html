@@ -203,6 +203,23 @@
       </div>
 
       <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
+          <div style="flex:1; min-width:300px;">
+            <h2 style="margin-bottom:6px;">Восстановление после блокировки VPS</h2>
+            <div class="muted" style="font-size:12px;">
+              Если VPS был заморожен из-за баланса или выключен, эта кнопка заново включает
+              автозапуск сервисов, восстанавливает <code>sbtun</code>, <code>iptables</code>,
+              <code>nft</code>-интеграцию SSTP→sing-box и перезапускает VPN-сервисы в правильном порядке.
+            </div>
+          </div>
+          <button id="sstpRecoverBtn" class="btn btn-warning btn-sm" onclick="recoverVpnAfterVpsBlock()">
+            Восстановить VPN сейчас
+          </button>
+        </div>
+        <pre id="sstpRecoverOut" style="display:none; margin-top:14px; max-height:260px; overflow:auto;"></pre>
+      </div>
+
+      <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
           <div style="flex:1; min-width:300px;">
             <h2 style="margin-bottom:6px;">Firewall/NAT для SSTP</h2>
@@ -1811,6 +1828,47 @@
         setTimeout(loadSstp, 2000);
       } catch (e) {
         alert(e.message);
+      }
+    }
+
+    async function recoverVpnAfterVpsBlock() {
+      if (!confirm('Восстановить VPN после блокировки/ребута VPS? Активные VPN-сессии будут переподключены.')) return;
+
+      const btn = document.getElementById('sstpRecoverBtn');
+      const out = document.getElementById('sstpRecoverOut');
+      const oldText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Восстанавливаю...';
+      out.style.display = 'block';
+      out.textContent = 'Запускаю восстановление...';
+
+      try {
+        const data = await api('POST', '/api/sstp/recover');
+        const stepLines = (data.steps || []).map(s =>
+          `${s.ok ? 'OK' : 'FAIL'}  ${s.label}${s.error ? `\n      ${s.error}` : ''}`
+        );
+        const firewall = data.firewall || {};
+        const sb = data.singboxIntegration || {};
+        const status = data.status || {};
+
+        out.textContent = [
+          `Итог: ${data.ok ? 'VPN восстановлен' : 'часть шагов не прошла'}`,
+          '',
+          ...stepLines,
+          '',
+          `SSTP: ${status.status || 'unknown'}, сессий: ${status.sessionsCount ?? '—'}`,
+          `Firewall/NAT: ${firewall.ok ? 'ok' : 'problem'}, автозапуск: ${firewall.serviceEnabled ? 'enabled' : 'disabled'}`,
+          `SSTP -> sing-box: ${sb.active ? 'active' : 'inactive'}, sbtun: ${sb.prerequisites?.sbtunUp ? 'ok' : 'problem'}, table 2022: ${sb.prerequisites?.route2022HasDefault ? 'ok' : 'problem'}`,
+        ].join('\n');
+
+        await loadSstp();
+        await loadSstpIntegration();
+      } catch (e) {
+        out.textContent = 'Ошибка восстановления: ' + e.message;
+        alert('Ошибка: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = oldText;
       }
     }
 
