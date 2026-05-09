@@ -1,0 +1,11 @@
+---
+description: Require explicit confirmation before running commands or deployment actions
+alwaysApply: true
+---
+
+# Ask Before Running Commands
+
+- Do not run shell commands, syntax checks, tests, linters, formatters, deploys, restarts, or service-management commands unless the user explicitly asks for that specific action or confirms it first.
+- This applies even to commands that appear read-only or harmless, such as `node --check`, `npm test`, `git diff`, or service status checks.
+- Prefer reading and editing files with IDE tools. If command output would be useful, first ask the user for permission and state the exact command.
+- Never run deployment, restart, VPS, VPN, systemd, firewall, iptables, nftables, or remote-server commands without explicit confirmation in the current conversation.

@@ -409,6 +409,21 @@ app.post('/api/sstp/recover', (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+app.get('/api/sstp/logs', (req, res) => {
+  try { res.json(sstp.getLogs(parseInt(req.query.lines, 10) || 200)); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/sstp/logs/clear', (req, res) => {
+  try { res.json(sstp.clearLogs()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/sstp/logs/clear-vpn', (req, res) => {
+  try { res.json(sstp.clearVpnLogs()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Firewall/NAT для SSTP. Эти правила runtime-only и могут пропасть после poweroff VPS.
 app.get('/api/sstp/firewall', (req, res) => {
   try { res.json(sstp.getFirewallStatus()); }

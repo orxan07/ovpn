@@ -15,10 +15,14 @@ const path = require('path');
 const CHAP_SECRETS = '/etc/accel-ppp/chap-secrets';
 const CONF = '/etc/accel-ppp.conf';
 const SERVER_CERT = '/etc/accel-ppp/sstp/server.crt';
+const LOG_DIR = '/var/log/accel-ppp';
+const LOG_FILE = `${LOG_DIR}/accel-ppp.log`;
 const SERVICE = 'accel-ppp';
 const FIREWALL_SERVICE = 'sstp-firewall';
 const FIREWALL_UNIT = '/etc/systemd/system/sstp-firewall.service';
 const FIREWALL_SCRIPT = path.resolve(__dirname, '..', 'infra/sstp/firewall.sh');
+const LOG_CLEANUP_SCRIPT = path.resolve(__dirname, '..', 'infra/sstp/clear-logs.sh');
+const VPN_LOG_CLEANUP_SCRIPT = path.resolve(__dirname, '..', 'scripts/clear-vpn-logs.sh');
 
 function run(cmd, opts = {}) {
   return execSync(cmd, { encoding: 'utf8', ...opts }).toString();
@@ -257,6 +261,43 @@ function restart() {
   applyFirewallRules();
   run(`sudo systemctl restart ${SERVICE}`);
   return { ok: true };
+}
+
+// ── Logs ────────────────────────────────────────────────
+
+function getLogs(lines = 200) {
+  const n = Math.max(1, Math.min(Number(lines) || 200, 2000));
+  const text = safeRun(`sudo test -f ${LOG_FILE} && sudo tail -n ${n} ${LOG_FILE} 2>&1 || true`);
+  return {
+    ok: true,
+    path: LOG_FILE,
+    lines: n,
+    text: text || '(лог пустой или файл не найден)',
+  };
+}
+
+function clearLogs() {
+  if (!fs.existsSync(LOG_CLEANUP_SCRIPT)) {
+    throw new Error(`Не найден clear-logs.sh: ${LOG_CLEANUP_SCRIPT}`);
+  }
+  run(`sudo /usr/bin/env bash ${LOG_CLEANUP_SCRIPT}`);
+  return {
+    ok: true,
+    cleared: `${LOG_DIR}/*.log*`,
+    logs: getLogs(50),
+  };
+}
+
+function clearVpnLogs() {
+  if (!fs.existsSync(VPN_LOG_CLEANUP_SCRIPT)) {
+    throw new Error(`Не найден clear-vpn-logs.sh: ${VPN_LOG_CLEANUP_SCRIPT}`);
+  }
+  const output = run(`sudo /usr/bin/env bash ${VPN_LOG_CLEANUP_SCRIPT}`);
+  return {
+    ok: true,
+    output: output.trim(),
+    logs: getLogs(50),
+  };
 }
 
 // ── Firewall/NAT автозапуск для SSTP ────────────────────
@@ -649,6 +690,9 @@ module.exports = {
   getSessions,
   disconnectSession,
   restart,
+  getLogs,
+  clearLogs,
+  clearVpnLogs,
   getServerCert,
   getCertInfo,
   getFirewallStatus,

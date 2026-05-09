@@ -203,6 +203,24 @@
       </div>
 
       <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
+          <div style="flex:1; min-width:300px;">
+            <h2 style="margin-bottom:6px;">Логи SSTP</h2>
+            <div class="muted" style="font-size:12px;">
+              Если роутер бесконечно пишет «идёт подключение», здесь будет видно,
+              дошёл ли клиент до <code>accel-ppp</code> и на чём оборвалась авторизация.
+            </div>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-ghost btn-sm" onclick="loadSstpLogs()">Показать последние логи</button>
+            <button class="btn btn-danger btn-sm" onclick="clearSstpLogs()">Очистить SSTP-логи</button>
+            <button class="btn btn-danger btn-sm" onclick="clearVpnLogs()">Очистить VPN-логи</button>
+          </div>
+        </div>
+        <pre id="sstpLogsOut" style="display:none; max-height:360px; overflow:auto;">Логи ещё не загружены</pre>
+      </div>
+
+      <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
           <div style="flex:1; min-width:300px;">
             <h2 style="margin-bottom:6px;">Восстановление после блокировки VPS</h2>
@@ -1869,6 +1887,46 @@
       } finally {
         btn.disabled = false;
         btn.textContent = oldText;
+      }
+    }
+
+    async function loadSstpLogs(lines = 300) {
+      const out = document.getElementById('sstpLogsOut');
+      out.style.display = 'block';
+      out.textContent = 'Загрузка логов...';
+      try {
+        const data = await api('GET', `/api/sstp/logs?lines=${lines}`);
+        out.textContent = `Файл: ${data.path}\nПоследние строк: ${data.lines}\n\n${data.text || '(пусто)'}`;
+      } catch (e) {
+        out.textContent = 'Ошибка загрузки логов: ' + e.message;
+      }
+    }
+
+    async function clearSstpLogs() {
+      if (!confirm('Очистить SSTP-логи в /var/log/accel-ppp? Это удалит старые rotated-файлы и обнулит текущий accel-ppp.log.')) return;
+
+      const out = document.getElementById('sstpLogsOut');
+      out.style.display = 'block';
+      out.textContent = 'Очищаю SSTP-логи...';
+      try {
+        const data = await api('POST', '/api/sstp/logs/clear');
+        out.textContent = `SSTP-логи очищены.\nОчищено: ${data.cleared}\n\n${data.logs?.text || ''}`;
+      } catch (e) {
+        out.textContent = 'Ошибка очистки логов: ' + e.message;
+      }
+    }
+
+    async function clearVpnLogs() {
+      if (!confirm('Очистить VPN-логи? Будут очищены accel-ppp/SSTP, nginx access/error, временные build-логи и ужат systemd-journal до 50 MB. Системные auth/syslog не трогаются.')) return;
+
+      const out = document.getElementById('sstpLogsOut');
+      out.style.display = 'block';
+      out.textContent = 'Очищаю VPN-логи...';
+      try {
+        const data = await api('POST', '/api/sstp/logs/clear-vpn');
+        out.textContent = `VPN-логи очищены.\n\n${data.output || ''}\n\nSSTP log после очистки:\n${data.logs?.text || ''}`;
+      } catch (e) {
+        out.textContent = 'Ошибка очистки VPN-логов: ' + e.message;
       }
     }
 
