@@ -218,6 +218,7 @@ function getStatus() {
   const sessions = isActive ? getSessions() : [];
   const port = readPort();
   const externalIp = readExternalIp();
+  const portStatus = getPortStatus(port || 14942);
 
   return {
     ok: isActive,
@@ -228,6 +229,7 @@ function getStatus() {
     externalIp,
     sessionsCount: sessions.length,
     usersCount: parseSecrets(safeRun(`sudo cat ${CHAP_SECRETS}`) || '').length,
+    portStatus,
   };
 }
 
@@ -253,6 +255,74 @@ function readExternalIp() {
   // fallback — основной IP машины
   const fallback = safeRun(`hostname -I | awk '{print $1}'`);
   return fallback || null;
+}
+
+// ── SSTP port ownership ─────────────────────────────────
+
+function getPortStatus(port = readPort() || 14942) {
+  const listener = safeRun(`sudo ss -lntp sport = :${port} 2>&1 || true`);
+  const processMatch = listener.match(/users:\(\("([^"]+)",pid=(\d+)/);
+  const processName = processMatch ? processMatch[1] : null;
+  const pid = processMatch ? Number(processMatch[2]) : null;
+  const hasListener = /^LISTEN/m.test(listener);
+  const ownedByAccel = /\("accel-pppd",pid=/.test(listener);
+  const ownedByOpenvpn = /\("openvpn",pid=/.test(listener);
+
+  return {
+    port,
+    hasListener,
+    ok: hasListener && ownedByAccel,
+    conflict: hasListener && !ownedByAccel,
+    ownedByAccel,
+    ownedByOpenvpn,
+    processName,
+    pid,
+    listener: listener || '(нет listener на порту)',
+  };
+}
+
+function resolvePortConflict() {
+  const before = getPortStatus();
+  const steps = [];
+
+  const step = (label, fn) => {
+    try {
+      const output = fn();
+      steps.push({ label, ok: true, output: output ? String(output).trim() : '' });
+    } catch (e) {
+      steps.push({ label, ok: false, error: e.message });
+    }
+  };
+
+  if (before.ownedByOpenvpn) {
+    step('Остановить и отключить OpenVPN автозапуск', () => safeRun(
+      'sudo systemctl disable --now openvpn openvpn@server openvpn-server@server openvpn-server 2>&1 || true'
+    ));
+  } else if (before.conflict) {
+    return {
+      ok: false,
+      before,
+      after: before,
+      steps,
+      error: `Порт ${before.port} занят процессом ${before.processName || 'unknown'}; автоматически отключаю только OpenVPN.`,
+    };
+  }
+
+  step('Перезапустить accel-ppp', () => run(`sudo systemctl restart ${SERVICE}`));
+  const afterRestart = getPortStatus();
+
+  if (!afterRestart.ok && before.ownedByOpenvpn && before.pid) {
+    step('Принудительно завершить старый openvpn-процесс', () => safeRun(`sudo kill ${before.pid} 2>&1 || true`));
+    step('Повторно перезапустить accel-ppp', () => run(`sudo systemctl restart ${SERVICE}`));
+  }
+
+  const after = getPortStatus();
+  return {
+    ok: after.ok,
+    before,
+    after,
+    steps,
+  };
 }
 
 function restart() {
@@ -291,6 +361,7 @@ function getVpsDiagnostics() {
   return {
     status: getStatus(),
     sessions: getSessions(),
+    portStatus: getPortStatus(),
     listener: safeRun('sudo ss -lntp sport = :14942 2>&1 || sudo ss -lntp | grep ":14942" || true'),
     accelProcesses: safeRun('ps -eo pid,ppid,stat,comm,args | grep -E "[a]ccel-ppp|[a]ccel-cmd" || true'),
     service: safeRun(`sudo systemctl status ${SERVICE} --no-pager -l 2>&1 || true`),
@@ -581,6 +652,10 @@ function recoverAfterVpsResume() {
     run('sudo systemctl enable sing-box wg-quick@wg0 accel-ppp');
   });
 
+  recoveryStep(steps, 'Отключить старый OpenVPN, чтобы он не занимал SSTP-порт', () => {
+    safeRun('sudo systemctl disable --now openvpn openvpn@server openvpn-server@server openvpn-server 2>&1 || true');
+  });
+
   recoveryStep(steps, 'Перезапустить sing-box и восстановить sbtun/table 2022', () => {
     run('sudo systemctl restart sing-box');
     run(
@@ -716,6 +791,8 @@ module.exports = {
   getSessions,
   disconnectSession,
   restart,
+  getPortStatus,
+  resolvePortConflict,
   getLogs,
   getVpsDiagnostics,
   clearLogs,

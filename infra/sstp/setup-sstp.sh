@@ -213,6 +213,9 @@ start_service() {
   log "Enabling and starting sstp-firewall..."
   systemctl enable --now sstp-firewall >/dev/null
 
+  log "Disabling legacy OpenVPN units so they cannot steal SSTP port $SSTP_PORT..."
+  systemctl disable --now openvpn openvpn@server openvpn-server@server openvpn-server >/dev/null 2>&1 || true
+
   log "Enabling and starting accel-ppp..."
   systemctl enable --now accel-ppp >/dev/null
   sleep 2

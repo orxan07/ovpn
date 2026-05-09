@@ -409,6 +409,16 @@ app.post('/api/sstp/recover', (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+app.get('/api/sstp/port', (req, res) => {
+  try { res.json(sstp.getPortStatus()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/sstp/port/resolve-conflict', (req, res) => {
+  try { res.json(sstp.resolvePortConflict()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get('/api/sstp/logs', (req, res) => {
   try { res.json(sstp.getLogs(parseInt(req.query.lines, 10) || 200)); }
   catch (e) { res.status(500).json({ error: e.message }); }

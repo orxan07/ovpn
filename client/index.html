@@ -205,6 +205,27 @@
       <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
           <div style="flex:1; min-width:300px;">
+            <h2 style="margin-bottom:6px;">SSTP-порт</h2>
+            <div class="muted" style="font-size:12px;">
+              Контроль конфликта порта <code>14942</code>: после восстановления VPS старый
+              <code>openvpn</code> может подняться раньше и занять порт, из-за чего Keenetic
+              бесконечно пишет «идёт подключение».
+            </div>
+          </div>
+          <div id="sstpPortState" style="text-align:right; display:flex; flex-direction:column; gap:6px; align-items:flex-end;">
+            <span class="muted">Загрузка...</span>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm" onclick="loadSstpPortState()">Обновить статус порта</button>
+          <button class="btn btn-warning btn-sm" onclick="resolveSstpPortConflict()">Убрать конфликт порта SSTP</button>
+        </div>
+        <pre id="sstpPortOut" style="display:none; margin-top:14px; max-height:260px; overflow:auto;"></pre>
+      </div>
+
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
+          <div style="flex:1; min-width:300px;">
             <h2 style="margin-bottom:6px;">Логи SSTP</h2>
             <div class="muted" style="font-size:12px;">
               Если роутер бесконечно пишет «идёт подключение», здесь будет видно,
@@ -1681,6 +1702,7 @@
       } catch (e) {
         document.getElementById('sstpStatusLine').innerHTML = `<span class="error">${e.message}</span>`;
       }
+      loadSstpPortState();
       loadSstpFirewallState();
       loadSstpSingboxState();
     }
@@ -1891,6 +1913,68 @@
       }
     }
 
+    async function loadSstpPortState() {
+      const state = document.getElementById('sstpPortState');
+      const out = document.getElementById('sstpPortOut');
+      if (!state) return;
+
+      try {
+        const s = await api('GET', '/api/sstp/port');
+        const badge = s.ok
+          ? '<span class="badge active">Порт занят SSTP</span>'
+          : s.conflict
+            ? '<span class="badge inactive">Конфликт порта</span>'
+            : '<span class="badge inactive">Порт не слушается</span>';
+        const ownerColor = s.ok ? '#4ade80' : '#f87171';
+        state.innerHTML = `
+          ${badge}
+          <div style="font-size:11px; color:${ownerColor};">
+            ${s.processName ? `${s.processName} pid=${s.pid}` : 'listener не найден'}
+          </div>
+          <div class="muted" style="font-size:11px;">tcp/${s.port}</div>
+        `;
+
+        if (s.conflict || !s.hasListener) {
+          out.style.display = 'block';
+          out.textContent = s.listener || '(нет данных listener)';
+        }
+      } catch (e) {
+        state.innerHTML = `<span class="error">${e.message}</span>`;
+      }
+    }
+
+    async function resolveSstpPortConflict() {
+      if (!confirm('Убрать конфликт порта SSTP? Если порт 14942 занят OpenVPN, он будет остановлен и отключён из автозапуска, затем SSTP будет перезапущен.')) return;
+
+      const out = document.getElementById('sstpPortOut');
+      out.style.display = 'block';
+      out.textContent = 'Убираю конфликт порта...';
+
+      try {
+        const data = await api('POST', '/api/sstp/port/resolve-conflict');
+        const steps = (data.steps || []).map(s =>
+          `${s.ok ? 'OK' : 'FAIL'}  ${s.label}${s.error ? `\n      ${s.error}` : ''}${s.output ? `\n      ${s.output}` : ''}`
+        );
+        out.textContent = [
+          `Итог: ${data.ok ? 'порт теперь у accel-ppp/SSTP' : 'конфликт не устранён'}`,
+          '',
+          'До:',
+          data.before?.listener || '(нет данных)',
+          '',
+          ...steps,
+          '',
+          'После:',
+          data.after?.listener || '(нет данных)',
+          data.error ? `\nОшибка: ${data.error}` : '',
+        ].join('\n');
+
+        await loadSstpPortState();
+        setTimeout(loadSstp, 1500);
+      } catch (e) {
+        out.textContent = 'Ошибка устранения конфликта: ' + e.message;
+      }
+    }
+
     async function loadSstpLogs(lines = 300) {
       const out = document.getElementById('sstpLogsOut');
       out.style.display = 'block';
@@ -1912,6 +1996,7 @@
         const sections = [
           ['SSTP status', JSON.stringify(d.status, null, 2)],
           ['Active sessions', JSON.stringify(d.sessions, null, 2)],
+          ['SSTP port status', JSON.stringify(d.portStatus, null, 2)],
           ['Listener on tcp/14942', d.listener],
           ['accel-ppp processes', d.accelProcesses],
           ['systemctl status accel-ppp', d.service],
