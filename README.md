@@ -226,5 +226,7 @@ WireGuard конфиги и ключи хранятся в `/etc/wireguard/clien
 | Anthropic / Claude | anthropic.com, claude.ai, ... | — |
 | Cursor | api2.cursor.sh, api3.cursor.sh, repo42.cursor.sh, cursorapi.com, cursor-cdn.com, VS Code/GitHub deps, ... | — |
 | Netflix | netflix.com, nflxvideo.net, fast.com, ... | 12 диапазонов AS2906 (Open Connect) |
+| BlueStacks | bluestacks.com, cdn3.bluestacks.com, cloud.bluestacks.com, Google Play/Android deps, ... | — |
+| GameLoop / Tencent | gameloop.com, unifiedaccess.gameloop.com, qq.com, gtimg.com, qcloud.com, tencentgames.com, ... | — |
 
 IP-диапазоны нужны для звонков и медиа (WhatsApp, Telegram) — они используют прямые IP без DNS.

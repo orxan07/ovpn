@@ -212,6 +212,47 @@ const PRESETS = [
       '198.45.48.0/20',
     ],
   },
+  {
+    name: 'BlueStacks',
+    domains: [
+      'bluestacks.com',          // сайт, cloud, eb, cdn3 и конфигурация эмулятора
+      'cdn3.bluestacks.com',
+      'cloud.bluestacks.com',
+      'delegate.bluestacks.com',
+      'eb.bluestacks.com',
+      // Google Play / Android runtime внутри BlueStacks.
+      'android.com',
+      'google.com',
+      'googleapis.com',
+      'googleusercontent.com',
+      'gstatic.com',
+      'gvt1.com',
+      'gvt2.com',
+    ],
+    ipCidr: [],
+  },
+  {
+    name: 'GameLoop / Tencent',
+    domains: [
+      'gameloop.com',
+      'unifiedaccess.gameloop.com', // проверка региона и доступности GameLoop
+      'tencent.com',
+      'tencent-cloud.net',
+      'tencent-cloud.com',
+      'tencentcloud.com',
+      'qq.com',
+      'gtimg.com',
+      'qpic.cn',
+      'qcloud.com',
+      'myqcloud.com',
+      'qcloudcdn.com',
+      'tencentgames.com',
+      'proximabeta.com',
+      'igamecj.com',
+      'gcloudcs.com',
+    ],
+    ipCidr: [],
+  },
 ];
 
 module.exports = { PRESETS };
