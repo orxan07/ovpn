@@ -7,6 +7,7 @@ APP_DIR="/opt/wg-admin"
 echo "=== Deploy ==="
 cd "$APP_DIR"
 git pull
+bash scripts/install-app-command.sh
 cd server && npm install --production
 node sync-presets.js
 sudo systemctl restart wg-admin

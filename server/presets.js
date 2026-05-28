@@ -54,6 +54,7 @@ const PRESETS = [
   },
   {
     name: 'WhatsApp',
+    syncAnchors: ['whatsapp.com', 'whatsapp.net', 'wa.me'],
     domains: [
       'whatsapp.com', 'whatsapp.net', 'whatsapp-cdn.net',
       'static.whatsapp.net', 'mmg.whatsapp.net', 'wa.me',
@@ -70,7 +71,7 @@ const PRESETS = [
       '45.64.40.0/22', '57.144.0.0/14',
       '66.220.144.0/20', '69.63.176.0/20', '69.171.224.0/19',
       '74.119.76.0/22', '102.132.96.0/20', '103.4.96.0/22',
-      '129.134.0.0/17', '157.240.0.0/17', '157.240.192.0/18',
+      '129.134.0.0/17', '157.240.0.0/17', '157.240.128.0/18', '157.240.192.0/18',
       '163.70.128.0/17',
       '173.252.64.0/18', '179.60.192.0/22', '185.60.216.0/22',
       '185.89.216.0/22', '204.15.20.0/22',
@@ -79,6 +80,7 @@ const PRESETS = [
   },
   {
     name: 'Instagram / Facebook / Meta',
+    syncAnchors: ['facebook.com', 'instagram.com', 'fbcdn.net', 'cdninstagram.com'],
     domains: [
       'instagram.com', 'cdninstagram.com', 'ig.me', 'threads.net',
       'facebook.com', 'facebook.net', 'fb.com', 'fb.me', 'fb.watch',
@@ -106,6 +108,7 @@ const PRESETS = [
       '103.4.96.0/22',
       '129.134.0.0/17',
       '157.240.0.0/17',
+      '157.240.128.0/18',
       '157.240.192.0/18',
       '163.70.128.0/17',
       '173.252.64.0/18',
