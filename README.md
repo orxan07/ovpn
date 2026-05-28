@@ -219,7 +219,7 @@ WireGuard конфиги и ключи хранятся в `/etc/wireguard/clien
 |--------|--------|--------------|
 | Telegram | telegram.org, t.me, ... | IPv4/IPv6 диапазоны из официального `cidr.txt` |
 | YouTube | youtube.com, ytimg.com, ggpht.com, googlevideo.com, googleusercontent.com, ... | — |
-| WhatsApp | whatsapp.com, wa.me, ... | 16 диапазонов Meta |
+| WhatsApp | whatsapp.com, whatsapp.net, fbcdn.net, fbsbx.com, graph.facebook.com, ... | основные диапазоны AS32934 Meta |
 | Instagram / Facebook / Meta | instagram.com, static.cdninstagram.com, fbcdn.net, cdninstagram.com, ... | основные диапазоны AS32934 Meta |
 | Discord | discord.com, discordapp.com, ... | — |
 | OpenAI / ChatGPT | openai.com, chatgpt.com, ... | — |
