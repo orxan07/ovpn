@@ -81,8 +81,9 @@ const PRESETS = [
     name: 'Instagram / Facebook / Meta',
     domains: [
       'instagram.com', 'cdninstagram.com', 'ig.me', 'threads.net',
-      'facebook.com', 'facebook.net', 'fb.com', 'fbsbx.com',
-      'fbcdn.net', 'meta.com', 'm.me', 'messenger.com',
+      'facebook.com', 'facebook.net', 'fb.com', 'fb.me', 'fb.watch',
+      'fbsbx.com', 'fbcdn.net', 'fbcdn.com', 'mfbcdn.net',
+      'meta.com', 'm.me', 'messenger.com',
       'static.cdninstagram.com', 'scontent.cdninstagram.com',
       'video.cdninstagram.com', 'instagram.fna.fbcdn.net',
       'accountkit.com', 'facebook-hardware.com', 'facebookmail.com',
