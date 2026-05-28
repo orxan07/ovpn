@@ -124,7 +124,7 @@ case "$1" in
   kill)    sudo systemctl stop wg-admin ;;
   status)  sudo systemctl status wg-admin --no-pager ;;
   logs)    sudo journalctl -u wg-admin -f --no-pager ;;
-  deploy)  cd "$APP_DIR" && git pull && cd server && npm install --production && sudo systemctl restart wg-admin ;;
+  deploy)  cd "$APP_DIR" && git pull && cd server && npm install --production && node sync-presets.js && sudo systemctl restart wg-admin ;;
   token)   grep AUTH_TOKEN "$APP_DIR/server/.env" | cut -d= -f2 ;;
   *)
     echo "Использование: app <команда>"

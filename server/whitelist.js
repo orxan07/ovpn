@@ -55,9 +55,81 @@ function addIpCidr(cidr) {
   writeConfig(config);
 }
 
+function collectDomains(config) {
+  const domains = new Set();
+  for (const rule of config.dns?.rules || []) {
+    for (const d of rule.domain_suffix || []) domains.add(d);
+  }
+  for (const rule of config.route?.rules || []) {
+    for (const d of rule.domain_suffix || []) domains.add(d);
+  }
+  return domains;
+}
+
+function collectIpCidrs(config) {
+  const cidrs = new Set();
+  for (const rule of config.route?.rules || []) {
+    for (const c of rule.ip_cidr || []) cidrs.add(c);
+  }
+  return cidrs;
+}
+
+function normalizeDomain(domain) {
+  return domain.toLowerCase().replace(/^[*.]+/, '');
+}
+
+function addPresetToConfig(config, preset) {
+  let domainsAdded = 0;
+  let ipCidrsAdded = 0;
+  let changed = false;
+
+  for (const domain of preset.domains || []) {
+    const d = normalizeDomain(domain);
+    let added = false;
+
+    for (const rule of config.dns?.rules || []) {
+      if (rule.domain_suffix && rule.server === 'dns-proxy') {
+        if (!rule.domain_suffix.includes(d)) {
+          rule.domain_suffix.push(d);
+          added = true;
+          changed = true;
+        }
+      }
+    }
+    for (const rule of config.route?.rules || []) {
+      if (rule.domain_suffix && rule.outbound === 'outline') {
+        if (!rule.domain_suffix.includes(d)) {
+          rule.domain_suffix.push(d);
+          added = true;
+          changed = true;
+        }
+      }
+    }
+
+    if (added) domainsAdded++;
+  }
+
+  for (const cidr of preset.ipCidr || []) {
+    let added = false;
+    for (const rule of config.route?.rules || []) {
+      if (rule.ip_cidr && rule.outbound === 'outline') {
+        if (!rule.ip_cidr.includes(cidr)) {
+          rule.ip_cidr.push(cidr);
+          added = true;
+          changed = true;
+        }
+      }
+    }
+
+    if (added) ipCidrsAdded++;
+  }
+
+  return { changed, domainsAdded, ipCidrsAdded };
+}
+
 // Добавляет домен во все нужные места (dns.rules + route.rules)
 function addDomain(domain) {
-  domain = domain.toLowerCase().replace(/^[*.]+/, ''); // убираем *. префикс
+  domain = normalizeDomain(domain); // убираем *. префикс
   const config = readConfig();
 
   let added = false;
@@ -91,7 +163,7 @@ function addDomain(domain) {
 
 // Удаляет домен из всех мест
 function removeDomain(domain) {
-  domain = domain.toLowerCase().replace(/^[*.]+/, '');
+  domain = normalizeDomain(domain);
   const config = readConfig();
 
   for (const rule of config.dns?.rules || []) {
@@ -112,35 +184,46 @@ function removeDomain(domain) {
 // Применяет пресет: добавляет домены + ip_cidr, перезапускает sing-box один раз
 function applyPreset(preset) {
   const config = readConfig();
-
-  for (const domain of preset.domains || []) {
-    const d = domain.toLowerCase();
-    for (const rule of config.dns?.rules || []) {
-      if (rule.domain_suffix && rule.server === 'dns-proxy') {
-        if (!rule.domain_suffix.includes(d)) rule.domain_suffix.push(d);
-      }
-    }
-    for (const rule of config.route?.rules || []) {
-      if (rule.domain_suffix && rule.outbound === 'outline') {
-        if (!rule.domain_suffix.includes(d)) rule.domain_suffix.push(d);
-      }
-    }
-  }
-
-  for (const cidr of preset.ipCidr || []) {
-    for (const rule of config.route?.rules || []) {
-      if (rule.ip_cidr && rule.outbound === 'outline') {
-        if (!rule.ip_cidr.includes(cidr)) rule.ip_cidr.push(cidr);
-      }
-    }
-  }
-
+  addPresetToConfig(config, preset);
   writeConfig(config);
   restartSingbox();
+}
+
+function isPresetApplied(config, preset) {
+  const domains = collectDomains(config);
+  const anchors = preset.syncAnchors || [preset.domains?.[0]].filter(Boolean);
+  return anchors.some(domain => domains.has(normalizeDomain(domain)));
+}
+
+// После deploy обновляет только те пресеты, которые уже были применены раньше.
+// Это не включает новые сервисы само по себе, а лишь подтягивает новые домены/IP.
+function syncAppliedPresets(presets) {
+  const config = readConfig();
+  const result = [];
+  let domainsAdded = 0;
+  let ipCidrsAdded = 0;
+
+  for (const preset of presets) {
+    if (!isPresetApplied(config, preset)) continue;
+
+    const added = addPresetToConfig(config, preset);
+    if (added.changed) {
+      result.push({ name: preset.name, ...added });
+      domainsAdded += added.domainsAdded;
+      ipCidrsAdded += added.ipCidrsAdded;
+    }
+  }
+
+  if (domainsAdded || ipCidrsAdded) {
+    writeConfig(config);
+    restartSingbox();
+  }
+
+  return { changed: Boolean(domainsAdded || ipCidrsAdded), domainsAdded, ipCidrsAdded, presets: result };
 }
 
 function restartSingbox() {
   run('sudo systemctl restart sing-box');
 }
 
-module.exports = { getDomains, getIpCidrs, addDomain, removeDomain, addIpCidr, applyPreset };
+module.exports = { getDomains, getIpCidrs, addDomain, removeDomain, addIpCidr, applyPreset, syncAppliedPresets };

@@ -8,6 +8,7 @@ echo "=== Deploy ==="
 cd "$APP_DIR"
 git pull
 cd server && npm install --production
+node sync-presets.js
 sudo systemctl restart wg-admin
 echo "Done. Status:"
 sudo systemctl status wg-admin --no-pager
