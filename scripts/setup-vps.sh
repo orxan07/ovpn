@@ -11,6 +11,9 @@ echo "=== WireGuard Admin Panel: setup ==="
 
 # 1. Зависимости: Node.js
 echo "[1/6] Устанавливаем Node.js..."
+sudo apt-get update
+sudo apt-get install -y wireguard wireguard-tools qrencode jq iptables nftables nginx certbot python3-certbot-nginx
+
 if ! command -v node &>/dev/null; then
   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
   sudo apt-get install -y nodejs
@@ -34,10 +37,7 @@ npm install --production
 
 # 4. sudoers
 echo "[4/6] Настраиваем sudoers..."
-sudo tee /etc/sudoers.d/wg-admin > /dev/null <<EOF
-$SERVICE_USER ALL=(ALL) NOPASSWD: /usr/bin/wg, /usr/bin/wg-quick, /usr/bin/qrencode, /usr/bin/bash, /bin/bash, /bin/rm, /usr/bin/tee, /bin/cat
-EOF
-sudo chmod 440 /etc/sudoers.d/wg-admin
+bash "$APP_DIR/scripts/install-sudoers.sh" "$SERVICE_USER"
 
 sudo mkdir -p /etc/wireguard/clients
 sudo chmod 750 /etc/wireguard
@@ -60,6 +60,20 @@ else
   echo "Файл .env уже существует, токен не меняем."
   echo "Текущий токен: $(grep AUTH_TOKEN $APP_DIR/server/.env | cut -d= -f2)"
 fi
+
+SERVER_IP="$(curl -4 -s --max-time 3 https://ifconfig.me/ip || hostname -I | awk '{print $1}')"
+ensure_env() {
+  local key="$1" value="$2"
+  if grep -q "^${key}=" "$APP_DIR/server/.env"; then
+    sudo sed -i "s|^${key}=.*|${key}=${value}|" "$APP_DIR/server/.env"
+  else
+    echo "${key}=${value}" | sudo tee -a "$APP_DIR/server/.env" > /dev/null
+  fi
+}
+ensure_env SERVER_ENDPOINT "$DOMAIN:443"
+ensure_env SINGBOX_WG_SERVER "$SERVER_IP"
+ensure_env SINGBOX_ROUTE_EXCLUDE "$SERVER_IP/32"
+sudo chown "$SERVICE_USER:$SERVICE_USER" "$APP_DIR/server/.env"
 
 # 6. systemd сервис
 echo "[5/6] Создаём systemd сервис..."
@@ -87,7 +101,6 @@ sudo systemctl restart wg-admin
 
 # 7. nginx + certbot
 echo "[6/6] Настраиваем nginx + HTTPS..."
-sudo apt-get install -y nginx certbot python3-certbot-nginx
 
 sudo tee /etc/nginx/sites-available/wg-admin > /dev/null <<EOF
 server {

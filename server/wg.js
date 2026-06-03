@@ -7,8 +7,12 @@ const WG_CONF = '/etc/wireguard/wg0.conf';
 const WG_INTERFACE = 'wg0';
 const SUBNET = '10.20.0';
 const SERVER_PUBKEY = 'Wq9Db2KQ2EQtIxTSaKT1cel6T0dSLX+cQ5k1JHHAcCE=';
-const SERVER_ENDPOINT = '171.22.75.104:443';
+const SERVER_ENDPOINT = process.env.SERVER_ENDPOINT || '171.22.75.104:443';
 const SERVER_HOST = SERVER_ENDPOINT.split(':')[0];
+const SINGBOX_WG_SERVER = process.env.SINGBOX_WG_SERVER || SERVER_HOST;
+const SINGBOX_ROUTE_EXCLUDE = process.env.SINGBOX_ROUTE_EXCLUDE || (
+  /^\d{1,3}(\.\d{1,3}){3}$/.test(SINGBOX_WG_SERVER) ? `${SINGBOX_WG_SERVER}/32` : null
+);
 const PRIVATE_BYPASS_ROUTES = [
   '10.0.0.0/8',
   '100.64.0.0/10',
@@ -149,22 +153,33 @@ function createClient(name) {
   if (fs.existsSync(confPath)) throw new Error(`Клиент ${name} уже существует`);
 
   const ip = nextFreeIp();
+  let pubkey = null;
 
-  run(`sudo wg genkey | sudo tee ${keyPath} | wg pubkey | sudo tee ${pubPath}`);
-  const privkey = run(`sudo cat ${keyPath}`);
-  const pubkey = run(`sudo cat ${pubPath}`);
+  try {
+    run(`sudo wg genkey | sudo tee ${keyPath} | wg pubkey | sudo tee ${pubPath}`);
+    const privkey = run(`sudo cat ${keyPath}`);
+    pubkey = run(`sudo cat ${pubPath}`);
 
-  const conf = buildWgConf(privkey, ip);
-  run(`sudo bash -c 'printf "%s" "${conf.replace(/"/g, '\\"')}" > ${confPath}'`);
-  run(`sudo chmod 640 ${confPath} ${pubPath}`);
-  run(`sudo chown root:${process.env.USER || 'orxan'} ${confPath} ${pubPath}`);
+    const conf = buildWgConf(privkey, ip);
+    run(`sudo bash -c 'printf "%s" "${conf.replace(/"/g, '\\"')}" > ${confPath}'`);
+    run(`sudo chmod 640 ${confPath} ${pubPath}`);
+    run(`sudo chown root:${process.env.USER || 'orxan'} ${confPath} ${pubPath}`);
 
-  run(`sudo wg set ${WG_INTERFACE} peer ${pubkey} allowed-ips ${ip}/32`);
+    const peerBlock = `\\n[Peer]\\nPublicKey = ${pubkey}\\nAllowedIPs = ${ip}/32`;
+    run(`sudo bash -c 'printf "${peerBlock}\\n" >> ${WG_CONF}'`);
+    run(`sudo wg set ${WG_INTERFACE} peer ${pubkey} allowed-ips ${ip}/32`);
 
-  const peerBlock = `\\n[Peer]\\nPublicKey = ${pubkey}\\nAllowedIPs = ${ip}/32`;
-  run(`sudo bash -c 'printf "${peerBlock}\\n" >> ${WG_CONF}'`);
-
-  return { name, ip, pubkey, conf };
+    return { name, ip, pubkey, conf };
+  } catch (e) {
+    if (pubkey) {
+      try { run(`sudo wg set ${WG_INTERFACE} peer ${pubkey} remove`); } catch {}
+      try { removePeerFromWgConf(pubkey); } catch {}
+    }
+    for (const f of [keyPath, pubPath, confPath]) {
+      try { run(`sudo rm ${f}`); } catch {}
+    }
+    throw e;
+  }
 }
 
 function buildWgConf(privkey, ip) {
@@ -335,10 +350,9 @@ function getSingboxConf(name, mode) {
     stack: 'system',
   };
 
-  const endpointRoute = `${SERVER_HOST}/32`;
   const route = { final: 'wg-out' };
   if (mode === 'wifi') {
-    inbound.route_exclude_address = [endpointRoute];
+    if (SINGBOX_ROUTE_EXCLUDE) inbound.route_exclude_address = [SINGBOX_ROUTE_EXCLUDE];
   }
 
   if (mode === 'beta') {
@@ -346,13 +360,13 @@ function getSingboxConf(name, mode) {
     // и локальным сетям, чтобы снизить шанс потери сети при смене аплинка.
     inbound.strict_route = false;
     inbound.route_exclude_address = [
-      endpointRoute,
+      ...(SINGBOX_ROUTE_EXCLUDE ? [SINGBOX_ROUTE_EXCLUDE] : []),
       ...PRIVATE_BYPASS_ROUTES,
     ];
   }
 
   if (mode === 'mac') {
-    inbound.route_exclude_address = [endpointRoute];
+    if (SINGBOX_ROUTE_EXCLUDE) inbound.route_exclude_address = [SINGBOX_ROUTE_EXCLUDE];
     route.auto_detect_interface = true;
   }
 
@@ -363,7 +377,7 @@ function getSingboxConf(name, mode) {
       {
         type: 'wireguard',
         tag: 'wg-out',
-        server: '171.22.75.104',
+        server: SINGBOX_WG_SERVER,
         server_port: 443,
         local_address: [`${ip}/32`],
         private_key: privkey,

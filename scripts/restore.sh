@@ -84,12 +84,18 @@ restore_dir "$WORK/etc/systemd/system" /etc/systemd/system
 restore_dir "$WORK/etc/sudoers.d" /etc/sudoers.d
 restore_dir "$WORK/etc/nftables.d" /etc/nftables.d
 restore_file "$WORK/etc/nftables.conf" /etc/nftables.conf
+restore_dir "$WORK/usr/local/sbin" /usr/local/sbin
 
 # Outline по желанию
 restore_dir "$WORK/opt/outline" /opt/outline
 
 echo "[8/8] Reload systemd + start services ..."
 systemctl daemon-reload
+
+if [ -f /opt/wg-admin/scripts/repair-after-restore.sh ]; then
+  echo "  repair restored users/sudoers/network bindings"
+  bash /opt/wg-admin/scripts/repair-after-restore.sh
+fi
 
 # Подымаем по очереди и не падаем если какого-то юнита нет
 for svc in nginx wg-quick@wg0 wg-quick@wg1 sing-box sstp-firewall accel-ppp wg-admin sstp-singbox-route outline; do

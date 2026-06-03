@@ -37,10 +37,15 @@ echo "=== bootstrap-vps: $DOMAIN ($BRANCH) ==="
 echo "[1/6] System update + base packages ..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
+if apt-cache show libpcre3-dev >/dev/null 2>&1; then
+  PCRE_DEV_PACKAGE="libpcre3-dev"
+else
+  PCRE_DEV_PACKAGE="libpcre2-dev"
+fi
 apt-get install -y \
   curl wget git ca-certificates gnupg lsb-release \
   build-essential cmake pkg-config \
-  libssl-dev libpcre3-dev liblua5.1-0-dev \
+  libssl-dev "$PCRE_DEV_PACKAGE" liblua5.1-0-dev \
   iptables nftables \
   wireguard wireguard-tools \
   qrencode jq \

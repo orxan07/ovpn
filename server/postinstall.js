@@ -5,6 +5,7 @@ const { execFileSync } = require('child_process');
 const ROOT_DIR = path.resolve(__dirname, '..');
 const SINGBOX_CONF = '/etc/sing-box/config.json';
 const APP_COMMAND = '/usr/local/bin/app';
+const WG_ADMIN_SERVICE = '/etc/systemd/system/wg-admin.service';
 
 function run(command, args) {
   execFileSync(command, args, { cwd: ROOT_DIR, stdio: 'inherit' });
@@ -18,6 +19,16 @@ function installAppCommandIfPresent() {
   run('bash', [installer]);
 }
 
+function installSudoersIfConfigured() {
+  const installer = path.join(ROOT_DIR, 'scripts/install-sudoers.sh');
+  if (!fs.existsSync(WG_ADMIN_SERVICE) || !fs.existsSync(installer)) return;
+
+  const service = fs.readFileSync(WG_ADMIN_SERVICE, 'utf8');
+  const serviceUser = service.match(/^User=(.+)$/m)?.[1]?.trim() || 'root';
+  console.log(`Updating sudoers for ${serviceUser}...`);
+  run('bash', [installer, serviceUser]);
+}
+
 function syncPresetsIfConfigured() {
   if (!fs.existsSync(SINGBOX_CONF)) return;
 
@@ -27,6 +38,7 @@ function syncPresetsIfConfigured() {
 
 try {
   installAppCommandIfPresent();
+  installSudoersIfConfigured();
   syncPresetsIfConfigured();
 } catch (e) {
   console.error(`postinstall failed: ${e.message}`);

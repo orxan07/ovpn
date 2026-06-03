@@ -54,6 +54,14 @@ for u in accel-ppp.service sstp-firewall.service sstp-singbox-route.service sing
     cp -a "/etc/systemd/system/$u" "$WORK/etc/systemd/system/"
   fi
 done
+if [ -d /etc/systemd/system/wg-quick@wg0.service.d ]; then
+  cp -a /etc/systemd/system/wg-quick@wg0.service.d "$WORK/etc/systemd/system/"
+fi
+if [ -f /usr/local/sbin/wg0-up ] || [ -f /usr/local/sbin/wg0-down ]; then
+  mkdir -p "$WORK/usr/local/sbin"
+  [ -f /usr/local/sbin/wg0-up ] && cp -a /usr/local/sbin/wg0-up "$WORK/usr/local/sbin/"
+  [ -f /usr/local/sbin/wg0-down ] && cp -a /usr/local/sbin/wg0-down "$WORK/usr/local/sbin/"
+fi
 
 # nftables.d тоже сохраним
 [ -d /etc/nftables.d ] && cp -a /etc/nftables.d "$WORK/etc/" || true
