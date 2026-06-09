@@ -385,6 +385,18 @@
         </div>
       </div>
       <div class="card">
+        <h2>Outline endpoint</h2>
+        <p class="muted" style="margin-bottom:12px;">Вставьте access key из Outline Manager в формате <code>ss://...</code>. Панель проверит новый sing-box config, сохранит endpoint и перезапустит sing-box.</p>
+        <div id="outlineCurrent" class="muted" style="margin-bottom:12px;">Загрузка...</div>
+        <textarea id="outlineAccessKey" placeholder="ss://..." rows="3" style="width:100%; background:#0f1117; border:1px solid #2d3148; border-radius:8px; color:#e2e8f0; padding:10px 12px; font-size:13px; outline:none; resize:vertical;"></textarea>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;">
+          <button class="btn btn-primary" id="outlineSaveBtn" onclick="saveOutlineEndpoint()">Сохранить и перезапустить sing-box</button>
+          <button class="btn btn-ghost" onclick="loadOutlineSettings()">Обновить</button>
+          <span id="outlineError" class="error"></span>
+          <span id="outlineOk" style="color:#4ade80; font-size:13px;"></span>
+        </div>
+      </div>
+      <div class="card">
         <h2>Токен авторизации</h2>
         <p class="muted" style="margin-bottom:12px;">Генерирует новый токен и сразу делает старый недействительным. После нажатия скопируйте токен — он показывается один раз.</p>
         <button class="btn btn-warning" onclick="rotateToken()">Сгенерировать новый токен</button>
@@ -646,6 +658,7 @@
         <button class="btn btn-ghost" id="sbWifiBtn" onclick="loadSingbox('wifi')">Wi-Fi</button>
         <button class="btn btn-ghost" id="sbBetaBtn" onclick="loadSingbox('beta')">Beta</button>
         <button class="btn btn-ghost" id="sbMacBtn" onclick="loadSingbox('mac')">Mac</button>
+        <button class="btn btn-ghost" id="sbAndroidBtn" onclick="loadSingbox('android')">Android</button>
       </div>
       <button class="btn btn-ghost" style="margin-bottom:12px;" onclick="copySingbox()">Скопировать JSON</button>
       <pre id="singboxConf"></pre>
@@ -750,6 +763,7 @@
         sstpTimer = setInterval(loadSstp, 10000);
       } else if (page === 'system') {
         loadSystem();
+        loadOutlineSettings();
         systemTimer = setInterval(loadSystem, 5000);
       } else if (page === 'whitelist') {
         loadPresets();
@@ -952,6 +966,65 @@
       }
     }
 
+    async function loadOutlineSettings() {
+      const currentEl = document.getElementById('outlineCurrent');
+      const errorEl = document.getElementById('outlineError');
+      const okEl = document.getElementById('outlineOk');
+      if (!currentEl) return;
+
+      errorEl.textContent = '';
+      okEl.textContent = '';
+      currentEl.textContent = 'Загрузка...';
+
+      try {
+        const outline = await api('GET', '/api/outline');
+        if (!outline) return;
+        if (!outline.configured) {
+          currentEl.innerHTML = '<span class="error">Outline outbound не настроен</span>';
+          return;
+        }
+        currentEl.innerHTML = `
+          <div style="display:grid; gap:4px;">
+            <div>Текущий: <code>${esc(outline.server)}:${esc(outline.server_port)}</code></div>
+            <div class="muted">method: <code>${esc(outline.method || '—')}</code>, password: <code>${esc(outline.passwordMasked || '—')}</code></div>
+          </div>
+        `;
+      } catch (e) {
+        currentEl.innerHTML = `<span class="error">${esc(e.message)}</span>`;
+      }
+    }
+
+    async function saveOutlineEndpoint() {
+      const accessKey = document.getElementById('outlineAccessKey').value.trim();
+      const errorEl = document.getElementById('outlineError');
+      const okEl = document.getElementById('outlineOk');
+      const btn = document.getElementById('outlineSaveBtn');
+
+      errorEl.textContent = '';
+      okEl.textContent = '';
+
+      if (!accessKey) {
+        errorEl.textContent = 'Вставьте ss:// access key';
+        return;
+      }
+      if (!confirm('Заменить Outline endpoint и перезапустить sing-box? На несколько секунд может пропасть доступ к whitelist-сервисам.')) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Сохраняю...';
+      try {
+        const outline = await api('POST', '/api/outline', { accessKey });
+        document.getElementById('outlineAccessKey').value = '';
+        okEl.textContent = `Сохранено: ${outline.server}:${outline.server_port}`;
+        await loadOutlineSettings();
+        setTimeout(loadSystemCheck, 1500);
+      } catch (e) {
+        errorEl.textContent = e.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Сохранить и перезапустить sing-box';
+      }
+    }
+
     async function rotateToken() {
       if (!confirm('Сгенерировать новый токен? Старый перестанет работать.')) return;
       try {
@@ -1136,6 +1209,7 @@
       document.getElementById('sbWifiBtn').className = `btn ${mode === 'wifi' ? 'btn-primary' : 'btn-ghost'}`;
       document.getElementById('sbBetaBtn').className = `btn ${mode === 'beta' ? 'btn-primary' : 'btn-ghost'}`;
       document.getElementById('sbMacBtn').className = `btn ${mode === 'mac' ? 'btn-primary' : 'btn-ghost'}`;
+      document.getElementById('sbAndroidBtn').className = `btn ${mode === 'android' ? 'btn-primary' : 'btn-ghost'}`;
       document.getElementById('singboxConf').textContent = 'Загрузка...';
       try {
         const conf = await api('GET', `/api/peers/${currentPeer}/singbox?mode=${mode}`);
@@ -1200,6 +1274,7 @@
       const wifiUrl = `${base}?mode=wifi`;
       const betaUrl = `${base}?mode=beta`;
       const macUrl = `${base}?mode=mac`;
+      const androidUrl = `${base}?mode=android`;
       document.getElementById('remoteProfileSection').innerHTML = `
         <div style="display:flex; flex-direction:column; gap:10px;">
           <div>
@@ -1228,6 +1303,13 @@
             <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
               <code style="background:#0f1117; padding:6px 10px; border-radius:6px; font-size:12px; flex:1; word-break:break-all;">${macUrl}</code>
               <button class="btn btn-sm btn-ghost" onclick="navigator.clipboard.writeText('${macUrl}')">Копировать</button>
+            </div>
+          </div>
+          <div>
+            <div class="muted" style="margin-bottom:4px;">Android (sing-box 1.13+):</div>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <code style="background:#0f1117; padding:6px 10px; border-radius:6px; font-size:12px; flex:1; word-break:break-all;">${androidUrl}</code>
+              <button class="btn btn-sm btn-ghost" onclick="navigator.clipboard.writeText('${androidUrl}')">Копировать</button>
             </div>
           </div>
           <div>
@@ -1714,7 +1796,7 @@
         `<span style="display:inline-flex; align-items:center; gap:8px;">${dot}<span style="color:${stateColor}">${s.status}</span></span>`;
 
       const stats = [
-        { label: 'Сервер', value: s.externalIp || '—' },
+        { label: 'Сервер', value: s.publicHost || s.externalIp || '—' },
         { label: 'Порт', value: s.port ? `${s.port}/TCP` : '—' },
         { label: 'Аптайм', value: fmtUptime(s.uptimeSec) },
         { label: 'Активных сессий', value: s.sessionsCount },
@@ -1820,7 +1902,7 @@
       if (!server || !port) {
         try {
           const s = await api('GET', '/api/sstp/status');
-          server = server || s.externalIp;
+          server = server || s.publicHost || s.externalIp;
           port = port || s.port;
         } catch {}
       }

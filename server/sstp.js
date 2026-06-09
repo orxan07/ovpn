@@ -218,6 +218,7 @@ function getStatus() {
   const sessions = isActive ? getSessions() : [];
   const port = readPort();
   const externalIp = readExternalIp();
+  const publicHost = readPublicHost(externalIp);
   const portStatus = getPortStatus(port || 14942);
 
   return {
@@ -227,6 +228,7 @@ function getStatus() {
     activeSince,
     port,
     externalIp,
+    publicHost,
     sessionsCount: sessions.length,
     usersCount: parseSecrets(safeRun(`sudo cat ${CHAP_SECRETS}`) || '').length,
     portStatus,
@@ -255,6 +257,19 @@ function readExternalIp() {
   // fallback — основной IP машины
   const fallback = safeRun(`hostname -I | awk '{print $1}'`);
   return fallback || null;
+}
+
+function readPublicHost(externalIp) {
+  const configured = process.env.SSTP_HOST || process.env.SERVER_ENDPOINT;
+  if (configured) {
+    const host = configured
+      .replace(/^[a-z][a-z0-9+.-]*:\/\//i, '')
+      .replace(/\/.*$/, '')
+      .replace(/^\[([^\]]+)\](?::\d+)?$/, '$1')
+      .replace(/:\d+$/, '');
+    if (host) return host;
+  }
+  return externalIp || null;
 }
 
 // ── SSTP port ownership ─────────────────────────────────

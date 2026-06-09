@@ -370,6 +370,70 @@ function getSingboxConf(name, mode) {
     route.auto_detect_interface = true;
   }
 
+  if (mode === 'android') {
+    // sing-box 1.13+ removed WireGuard as an outbound. Android builds with
+    // newer cores need the endpoint model, while iOS still works with legacy
+    // outbounds, so keep this as an explicit compatibility mode.
+    delete inbound.stack;
+    inbound.strict_route = false;
+    inbound.route_exclude_address = [
+      ...(SINGBOX_ROUTE_EXCLUDE ? [SINGBOX_ROUTE_EXCLUDE] : []),
+      ...PRIVATE_BYPASS_ROUTES,
+    ];
+
+    return {
+      log: { level: 'info' },
+      dns: {
+        strategy: 'prefer_ipv4',
+        servers: [
+          {
+            type: 'udp',
+            tag: 'dns-wg',
+            server: '1.1.1.1',
+            server_port: 53,
+            detour: 'wg-out',
+          },
+        ],
+        final: 'dns-wg',
+      },
+      inbounds: [inbound],
+      endpoints: [
+        {
+          type: 'wireguard',
+          tag: 'wg-out',
+          detour: 'direct',
+          address: [`${ip}/32`],
+          private_key: privkey,
+          mtu,
+          peers: [
+            {
+              address: SINGBOX_WG_SERVER,
+              port: 443,
+              public_key: SERVER_PUBKEY,
+              allowed_ips: ['0.0.0.0/0'],
+              persistent_keepalive_interval: 25,
+            },
+          ],
+        },
+      ],
+      outbounds: [
+        {
+          type: 'direct',
+          tag: 'direct',
+        },
+      ],
+      route: {
+        rules: [
+          {
+            port: 53,
+            action: 'hijack-dns',
+          },
+        ],
+        final: route.final,
+      },
+    };
+  }
+
   const result = {
     log: { level: 'info' },
     inbounds: [inbound],

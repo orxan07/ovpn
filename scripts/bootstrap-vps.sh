@@ -90,7 +90,7 @@ bash "$APP_DIR/scripts/setup-vps.sh"
 echo "[6/6] SSTP server (accel-ppp) ..."
 if ! systemctl is-active --quiet accel-ppp; then
   cd "$APP_DIR/infra/sstp"
-  bash setup-sstp.sh
+  SSTP_CN="$DOMAIN" bash setup-sstp.sh
 else
   echo "  accel-ppp уже активен, пропуск."
 fi

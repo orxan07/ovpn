@@ -10,13 +10,14 @@ const whitelist = require('./whitelist');
 const { PRESETS } = require('./presets');
 const diag = require('./diagnostics');
 const sstp = require('./sstp');
+const outline = require('./outline');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 const ENV_FILE = path.join(__dirname, '.env');
 
 function getSingboxMode(mode) {
-  return ['mobile', 'wifi', 'beta', 'mac'].includes(mode) ? mode : 'mobile';
+  return ['mobile', 'wifi', 'beta', 'mac', 'android'].includes(mode) ? mode : 'mobile';
 }
 
 // Читаем токен из .env в runtime (чтобы перегенерация работала без перезапуска)
@@ -281,6 +282,23 @@ app.get('/api/system/check', (req, res) => {
   res.json(results);
 });
 
+app.get('/api/outline', (req, res) => {
+  try {
+    res.json(outline.getOutline());
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/outline', (req, res) => {
+  try {
+    const { accessKey } = req.body || {};
+    res.json(outline.updateOutline(accessKey));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 // Перегенерация токена
 app.post('/api/system/rotate-token', (req, res) => {
   try {
@@ -363,7 +381,7 @@ app.get('/api/sstp/users/:name/credentials', (req, res) => {
     res.json({
       name: u.name,
       password: u.password,
-      server: status.externalIp,
+      server: status.publicHost || status.externalIp,
       port: status.port,
     });
   } catch (e) { res.status(404).json({ error: e.message }); }

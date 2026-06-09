@@ -28,6 +28,7 @@ SSTP_GW_IP="${SSTP_GW_IP:-10.27.0.1}"
 SSTP_POOL="${SSTP_POOL:-10.27.0.2-100}"
 SSTP_WAN_IF="${SSTP_WAN_IF:-$(ip route show default | awk '/default/ {print $5; exit}')}"
 SSTP_CN="${SSTP_CN:-$(curl -fsS https://api.ipify.org || hostname -I | awk '{print $1}')}"
+SSTP_CERT_FORCE="${SSTP_CERT_FORCE:-0}"
 
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -77,12 +78,34 @@ generate_cert() {
   log "Generating self-signed TLS cert (CN=$SSTP_CN)..."
   mkdir -p /etc/accel-ppp/sstp
   cd /etc/accel-ppp/sstp
+
+  local san_type="DNS"
+  if [[ "$SSTP_CN" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    san_type="IP"
+  fi
+
+  local cert_matches=0
   if [ -f server.crt ] && [ -f server.key ]; then
-    log "TLS cert already exists, keeping."
+    if openssl x509 -in server.crt -noout -ext subjectAltName 2>/dev/null | grep -Eq "${san_type}( Address)?:${SSTP_CN}([,[:space:]]|$)"; then
+      cert_matches=1
+    fi
+  fi
+
+  if [ "$cert_matches" = "1" ] && [ "$SSTP_CERT_FORCE" != "1" ]; then
+    log "TLS cert already matches ${san_type}:${SSTP_CN}, keeping."
   else
+    if [ -f server.crt ] || [ -f server.key ] || [ -f server.pem ]; then
+      local backup_dir="backup-$(date +%Y%m%d%H%M%S)"
+      mkdir -p "$backup_dir"
+      [ -f server.crt ] && cp -a server.crt "$backup_dir/"
+      [ -f server.key ] && cp -a server.key "$backup_dir/"
+      [ -f server.pem ] && cp -a server.pem "$backup_dir/"
+      log "Existing TLS cert does not match ${san_type}:${SSTP_CN}; backed up to $backup_dir."
+    fi
+
     openssl req -new -newkey rsa:2048 -days 3650 -nodes -x509 \
       -subj "/C=RU/ST=Moscow/L=Moscow/O=ovpn/CN=$SSTP_CN" \
-      -addext "subjectAltName=IP:$SSTP_CN" \
+      -addext "subjectAltName=${san_type}:$SSTP_CN" \
       -keyout server.key -out server.crt 2>/dev/null
     chmod 600 server.key
   fi
@@ -163,6 +186,12 @@ EOF
 }
 
 write_secrets() {
+  if [ -f /etc/accel-ppp/chap-secrets ]; then
+    log "chap-secrets already exists, keeping existing SSTP users."
+    chmod 600 /etc/accel-ppp/chap-secrets
+    return
+  fi
+
   log "Writing /etc/accel-ppp/chap-secrets (user=$SSTP_USER)..."
   cat > /etc/accel-ppp/chap-secrets <<EOF
 # user  server  password   ip

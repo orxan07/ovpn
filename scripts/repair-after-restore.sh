@@ -3,6 +3,8 @@ set -euo pipefail
 
 APP_DIR="/opt/wg-admin"
 WG_CONF="/etc/wireguard/wg0.conf"
+ENV_FILE="$APP_DIR/server/.env"
+SSTP_CERT_DIR="/etc/accel-ppp/sstp"
 
 SERVICE_USER="$(awk -F= '/^User=/{print $2; exit}' /etc/systemd/system/wg-admin.service 2>/dev/null || true)"
 SERVICE_USER="${SERVICE_USER:-root}"
@@ -41,6 +43,56 @@ PY
   fi
 fi
 
+repair_sstp_cert() {
+  [ -d "$SSTP_CERT_DIR" ] || return 0
+
+  local host=""
+  if [ -f "$ENV_FILE" ]; then
+    host="$(awk -F= '/^SSTP_HOST=/{print $2; exit}' "$ENV_FILE")"
+    if [ -z "$host" ]; then
+      host="$(awk -F= '/^SERVER_ENDPOINT=/{print $2; exit}' "$ENV_FILE")"
+    fi
+  fi
+
+  if [ -z "$host" ]; then
+    host="$(curl -fsS --max-time 3 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')"
+  fi
+
+  host="${host#*://}"
+  host="${host%%/*}"
+  host="${host#[}"
+  host="${host%]}"
+  host="${host%:*}"
+  [ -n "$host" ] || return 0
+
+  local san_type="DNS"
+  if [[ "$host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    san_type="IP"
+  fi
+
+  cd "$SSTP_CERT_DIR"
+  if [ -f server.crt ] && [ -f server.key ] && openssl x509 -in server.crt -noout -ext subjectAltName 2>/dev/null | grep -Eq "${san_type}( Address)?:${host}([,[:space:]]|$)"; then
+    return 0
+  fi
+
+  local backup_dir="backup-$(date +%Y%m%d%H%M%S)"
+  mkdir -p "$backup_dir"
+  [ -f server.crt ] && cp -a server.crt "$backup_dir/"
+  [ -f server.key ] && cp -a server.key "$backup_dir/"
+  [ -f server.pem ] && cp -a server.pem "$backup_dir/"
+
+  openssl req -new -newkey rsa:2048 -days 3650 -nodes -x509 \
+    -subj "/C=RU/ST=Moscow/L=Moscow/O=ovpn/CN=$host" \
+    -addext "subjectAltName=${san_type}:$host" \
+    -keyout server.key -out server.crt 2>/dev/null
+  chmod 600 server.key
+  cat server.crt server.key > server.pem
+  chmod 600 server.pem
+  echo "Regenerated SSTP TLS cert for ${san_type}:${host}; old cert backed up to $SSTP_CERT_DIR/$backup_dir."
+}
+
+repair_sstp_cert
+
 mkdir -p /etc/wireguard/clients
 chmod 750 /etc/wireguard /etc/wireguard/clients 2>/dev/null || true
 if [ "$SERVICE_USER" != "root" ]; then
@@ -56,5 +108,13 @@ if systemctl list-unit-files | grep -q '^wg-quick@\.service'; then
     echo "wg-quick@wg0 failed, installing wg0 wrapper fallback..."
     bash "$APP_DIR/scripts/install-wg0-wrapper.sh"
     systemctl restart wg-quick@wg0
+  fi
+fi
+
+if [ -f /etc/systemd/system/sstp-singbox-route.service ] && [ -f /etc/nftables.d/sstp-singbox.nft ]; then
+  if ip -br link show sbtun >/dev/null 2>&1; then
+    systemctl enable --now sstp-singbox-route
+  else
+    echo "sstp-singbox-route is installed, but sbtun is not ready; skipping enable."
   fi
 fi
