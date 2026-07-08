@@ -290,6 +290,39 @@ app.get('/api/outline', (req, res) => {
   }
 });
 
+app.get('/api/outline/profiles', (req, res) => {
+  try {
+    res.json(outline.getProfiles());
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/outline/profiles', (req, res) => {
+  try {
+    const { accessKey, name, activate } = req.body || {};
+    res.json(outline.addProfile(accessKey, name, activate !== false));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.post('/api/outline/profiles/:id/activate', (req, res) => {
+  try {
+    res.json(outline.activateProfile(req.params.id));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.delete('/api/outline/profiles/:id', (req, res) => {
+  try {
+    res.json(outline.deleteProfile(req.params.id));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 app.post('/api/outline', (req, res) => {
   try {
     const { accessKey } = req.body || {};

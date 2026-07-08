@@ -385,12 +385,14 @@
         </div>
       </div>
       <div class="card">
-        <h2>Outline endpoint</h2>
-        <p class="muted" style="margin-bottom:12px;">Вставьте access key из Outline Manager в формате <code>ss://...</code>. Панель проверит новый sing-box config, сохранит endpoint и перезапустит sing-box.</p>
+        <h2>Outline endpoints</h2>
+        <p class="muted" style="margin-bottom:12px;">Можно сохранить несколько access key из Outline Manager и переключать активный. Активный профиль записывается в sing-box outbound <code>tag=outline</code>.</p>
         <div id="outlineCurrent" class="muted" style="margin-bottom:12px;">Загрузка...</div>
+        <div id="outlineProfiles" style="display:grid; gap:8px; margin-bottom:14px;"></div>
+        <input type="text" id="outlineName" placeholder="Название профиля (например NL Outline)" style="width:100%; margin-bottom:8px;" />
         <textarea id="outlineAccessKey" placeholder="ss://..." rows="3" style="width:100%; background:#0f1117; border:1px solid #2d3148; border-radius:8px; color:#e2e8f0; padding:10px 12px; font-size:13px; outline:none; resize:vertical;"></textarea>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;">
-          <button class="btn btn-primary" id="outlineSaveBtn" onclick="saveOutlineEndpoint()">Сохранить и перезапустить sing-box</button>
+          <button class="btn btn-primary" id="outlineSaveBtn" onclick="saveOutlineEndpoint()">Добавить и активировать</button>
           <button class="btn btn-ghost" onclick="loadOutlineSettings()">Обновить</button>
           <span id="outlineError" class="error"></span>
           <span id="outlineOk" style="color:#4ade80; font-size:13px;"></span>
@@ -987,6 +989,7 @@
 
     async function loadOutlineSettings() {
       const currentEl = document.getElementById('outlineCurrent');
+      const profilesEl = document.getElementById('outlineProfiles');
       const errorEl = document.getElementById('outlineError');
       const okEl = document.getElementById('outlineOk');
       if (!currentEl) return;
@@ -994,6 +997,7 @@
       errorEl.textContent = '';
       okEl.textContent = '';
       currentEl.textContent = 'Загрузка...';
+      profilesEl.innerHTML = '';
 
       try {
         const outline = await api('GET', '/api/outline');
@@ -1008,13 +1012,44 @@
             <div class="muted">method: <code>${esc(outline.method || '—')}</code>, password: <code>${esc(outline.passwordMasked || '—')}</code></div>
           </div>
         `;
+        renderOutlineProfiles(outline.profiles || []);
       } catch (e) {
         currentEl.innerHTML = `<span class="error">${esc(e.message)}</span>`;
       }
     }
 
+    function renderOutlineProfiles(profiles) {
+      const profilesEl = document.getElementById('outlineProfiles');
+      if (!profiles.length) {
+        profilesEl.innerHTML = '<div class="muted">Сохранённых Outline профилей пока нет</div>';
+        return;
+      }
+
+      profilesEl.innerHTML = profiles.map(profile => `
+        <div class="service-item">
+          <div>
+            <div class="service-name">
+              ${profile.active ? '<span class="dot dot-green" style="display:inline-block; margin-right:6px;"></span>' : '<span class="dot dot-gray" style="display:inline-block; margin-right:6px;"></span>'}
+              ${esc(profile.name || `${profile.server}:${profile.server_port}`)}
+              ${profile.active ? '<span class="muted" style="margin-left:6px;">active</span>' : ''}
+            </div>
+            <div class="muted" style="font-size:12px; margin-top:3px;">
+              <code>${esc(profile.server)}:${esc(profile.server_port)}</code>,
+              method: <code>${esc(profile.method || '—')}</code>,
+              password: <code>${esc(profile.passwordMasked || '—')}</code>
+            </div>
+          </div>
+          <div class="service-status">
+            ${profile.active ? '' : `<button class="btn btn-sm btn-primary" onclick="activateOutlineProfile('${profile.id}')">Активировать</button>`}
+            ${profile.active ? '' : `<button class="btn btn-sm btn-danger" onclick="deleteOutlineProfile('${profile.id}')">Удалить</button>`}
+          </div>
+        </div>
+      `).join('');
+    }
+
     async function saveOutlineEndpoint() {
       const accessKey = document.getElementById('outlineAccessKey').value.trim();
+      const name = document.getElementById('outlineName').value.trim();
       const errorEl = document.getElementById('outlineError');
       const okEl = document.getElementById('outlineOk');
       const btn = document.getElementById('outlineSaveBtn');
@@ -1026,21 +1061,59 @@
         errorEl.textContent = 'Вставьте ss:// access key';
         return;
       }
-      if (!confirm('Заменить Outline endpoint и перезапустить sing-box? На несколько секунд может пропасть доступ к whitelist-сервисам.')) return;
+      if (!confirm('Добавить Outline profile, сделать его активным и перезапустить sing-box? На несколько секунд может пропасть доступ к whitelist-сервисам.')) return;
 
       btn.disabled = true;
       btn.textContent = 'Сохраняю...';
       try {
-        const outline = await api('POST', '/api/outline', { accessKey });
+        const outline = await api('POST', '/api/outline/profiles', { accessKey, name, activate: true });
         document.getElementById('outlineAccessKey').value = '';
-        okEl.textContent = `Сохранено: ${outline.server}:${outline.server_port}`;
+        document.getElementById('outlineName').value = '';
+        const active = outline.profiles?.find(p => p.active);
+        okEl.textContent = `Активирован: ${active ? `${active.server}:${active.server_port}` : 'новый profile'}`;
         await loadOutlineSettings();
         setTimeout(loadSystemCheck, 1500);
       } catch (e) {
         errorEl.textContent = e.message;
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Сохранить и перезапустить sing-box';
+        btn.textContent = 'Добавить и активировать';
+      }
+    }
+
+    async function activateOutlineProfile(id) {
+      const errorEl = document.getElementById('outlineError');
+      const okEl = document.getElementById('outlineOk');
+      errorEl.textContent = '';
+      okEl.textContent = '';
+
+      if (!confirm('Активировать этот Outline profile и перезапустить sing-box?')) return;
+
+      try {
+        const outline = await api('POST', `/api/outline/profiles/${encodeURIComponent(id)}/activate`);
+        const active = outline.profiles?.find(p => p.active);
+        okEl.textContent = `Активирован: ${active ? `${active.server}:${active.server_port}` : 'profile'}`;
+        await loadOutlineSettings();
+        setTimeout(loadSystemCheck, 1500);
+      } catch (e) {
+        errorEl.textContent = e.message;
+      }
+    }
+
+    async function deleteOutlineProfile(id) {
+      const errorEl = document.getElementById('outlineError');
+      const okEl = document.getElementById('outlineOk');
+      errorEl.textContent = '';
+      okEl.textContent = '';
+
+      if (!confirm('Удалить этот сохранённый Outline profile? Активный profile удалить нельзя.')) return;
+
+      try {
+        await api('DELETE', `/api/outline/profiles/${encodeURIComponent(id)}`);
+        okEl.textContent = 'Профиль удалён';
+        await loadOutlineSettings();
+      } catch (e) {
+        errorEl.textContent = e.message;
       }
     }
 
