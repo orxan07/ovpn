@@ -45,6 +45,37 @@ function getIpCidrs() {
   return Array.from(cidrs).sort();
 }
 
+function getRoutingMode() {
+  const config = readConfig();
+  const final = config.route?.final || 'direct';
+  const hasOutline = (config.outbounds || []).some(outbound => outbound.tag === 'outline');
+
+  return {
+    mode: final === 'outline' ? 'all' : 'whitelist',
+    final,
+    allTrafficThroughOutline: final === 'outline',
+    hasOutline,
+  };
+}
+
+function setRoutingMode(mode) {
+  if (!['whitelist', 'all'].includes(mode)) {
+    throw new Error('mode должен быть whitelist или all');
+  }
+
+  const config = readConfig();
+  const hasOutline = (config.outbounds || []).some(outbound => outbound.tag === 'outline');
+  if (!hasOutline) throw new Error('В sing-box config не найден outbound tag=outline');
+
+  config.route = config.route || {};
+  config.route.final = mode === 'all' ? 'outline' : 'direct';
+
+  writeConfig(config);
+  restartSingbox();
+
+  return getRoutingMode();
+}
+
 function addIpCidr(cidr) {
   const config = readConfig();
   for (const rule of config.route?.rules || []) {
@@ -226,4 +257,14 @@ function restartSingbox() {
   run('sudo systemctl restart sing-box');
 }
 
-module.exports = { getDomains, getIpCidrs, addDomain, removeDomain, addIpCidr, applyPreset, syncAppliedPresets };
+module.exports = {
+  getDomains,
+  getIpCidrs,
+  getRoutingMode,
+  setRoutingMode,
+  addDomain,
+  removeDomain,
+  addIpCidr,
+  applyPreset,
+  syncAppliedPresets,
+};

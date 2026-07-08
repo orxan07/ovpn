@@ -324,6 +324,23 @@ app.get('/api/whitelist', (req, res) => {
   }
 });
 
+app.get('/api/whitelist/routing', (req, res) => {
+  try {
+    res.json(whitelist.getRoutingMode());
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/whitelist/routing', (req, res) => {
+  try {
+    const { mode } = req.body || {};
+    res.json(whitelist.setRoutingMode(mode));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
 app.post('/api/whitelist', (req, res) => {
   try {
     const { domain } = req.body;

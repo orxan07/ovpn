@@ -411,6 +411,24 @@
     <!-- Страница: Whitelist -->
     <div id="page-whitelist" style="display:none;">
       <div class="card">
+        <h2>Режим маршрутизации</h2>
+        <p class="muted" style="margin-bottom:12px;">
+          В режиме whitelist через Outline идут только домены/IP ниже. В режиме “весь трафик”
+          sing-box отправляет через Outline весь клиентский трафик, который не был обработан отдельными правилами.
+        </p>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+          <div>
+            <div id="routingModeTitle" style="font-weight:600;">Загрузка...</div>
+            <div id="routingModeHint" class="muted" style="font-size:12px; margin-top:4px;"></div>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <button class="btn btn-ghost btn-sm" id="routingWhitelistBtn" onclick="setRoutingMode('whitelist')">Только whitelist</button>
+            <button class="btn btn-ghost btn-sm" id="routingAllBtn" onclick="setRoutingMode('all')">Весь трафик через Outline</button>
+            <span id="routingModeError" class="error"></span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
         <h2>Предустановки</h2>
         <p class="muted" style="margin-bottom:12px;">Добавляют домены и IP-диапазоны для популярных сервисов. Уже добавленные пропускаются.</p>
         <div id="presetsList" style="display:flex; flex-wrap:wrap; gap:8px;">
@@ -766,6 +784,7 @@
         loadOutlineSettings();
         systemTimer = setInterval(loadSystem, 5000);
       } else if (page === 'whitelist') {
+        loadRoutingMode();
         loadPresets();
         loadWhitelist();
       } else if (page === 'diagnostics') {
@@ -1044,6 +1063,52 @@
     }
 
     // ── Whitelist ──
+
+    async function loadRoutingMode() {
+      const titleEl = document.getElementById('routingModeTitle');
+      const hintEl = document.getElementById('routingModeHint');
+      const errEl = document.getElementById('routingModeError');
+      if (!titleEl) return;
+
+      errEl.textContent = '';
+      try {
+        const state = await api('GET', '/api/whitelist/routing');
+        if (!state) return;
+        const all = state.mode === 'all';
+        titleEl.textContent = all ? 'Весь трафик идёт через Outline' : 'Через Outline идёт только whitelist';
+        hintEl.textContent = all
+          ? 'route.final = outline. Отключите режим, чтобы вернуться к selective routing.'
+          : `route.final = ${state.final || 'direct'}. Whitelist-правила продолжают работать.`;
+        document.getElementById('routingWhitelistBtn').className = `btn btn-sm ${all ? 'btn-ghost' : 'btn-primary'}`;
+        document.getElementById('routingAllBtn').className = `btn btn-sm ${all ? 'btn-primary' : 'btn-ghost'}`;
+      } catch (e) {
+        titleEl.textContent = 'Не удалось загрузить режим маршрутизации';
+        hintEl.textContent = '';
+        errEl.textContent = e.message;
+      }
+    }
+
+    async function setRoutingMode(mode) {
+      const errEl = document.getElementById('routingModeError');
+      const all = mode === 'all';
+      errEl.textContent = '';
+
+      if (all && !confirm('Включить режим “весь трафик через Outline”? Если Outline нестабилен, весь интернет у клиентов может начать тормозить.')) {
+        return;
+      }
+
+      try {
+        document.getElementById('routingWhitelistBtn').disabled = true;
+        document.getElementById('routingAllBtn').disabled = true;
+        await api('POST', '/api/whitelist/routing', { mode });
+        await loadRoutingMode();
+      } catch (e) {
+        errEl.textContent = e.message;
+      } finally {
+        document.getElementById('routingWhitelistBtn').disabled = false;
+        document.getElementById('routingAllBtn').disabled = false;
+      }
+    }
 
     async function loadPresets() {
       try {
