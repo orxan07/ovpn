@@ -21,6 +21,19 @@
 | Данные клиентов | `/opt/wg-admin/data/store.json` |
 | Токен авторизации | `/opt/wg-admin/.env` → `AUTH_TOKEN=...` |
 
+## Outline-VPS (отдельная машина)
+
+| Параметр | Значение |
+|---|---|
+| Hostname | `vm-pico` |
+| Публичный IP | `156.67.63.163` |
+| SSH | `ssh root@156.67.63.163` |
+| Outline | `outline-ss-serv`, ключи на высоких UDP + TCP `25235`, manager TCP `35849` |
+| MTProto-прокси | Docker `mtproto-proxy`, публично `443/tcp` |
+| Secret MTProto | `/root/mtproto-secret.txt` (не в git) |
+
+Подробности и команды: [`docs/mtproto.md`](docs/mtproto.md).
+
 ## Текущие клиенты
 
 | Имя | IP | Устройство |
@@ -36,6 +49,7 @@
 - Два профиля на iPhone: **mobile** (без `route_exclude_address`) и **wifi** (с `route_exclude_address: ["171.22.75.104/32"]`)
 - Outline (Shadowsocks) используется для split-routing заблокированных сайтов через sing-box на VPS
 - WhatsApp звонки/видео требуют IP-диапазоны Meta в `route.rules[].ip_cidr` — без них DNS работает, но TURN серверы недоступны
+- MTProto-прокси для «только Telegram без VPN» живёт на Outline-VPS `156.67.63.163:443`, не на основной машине (там 443 уже занят nginx/WG)
 
 ## Структура проекта
 
@@ -57,6 +71,7 @@
 │   └── deploy.sh          # Деплой обновлений
 ├── data/
 │   └── store.json         # Создаётся автоматически на VPS
+├── docs/mtproto.md        # MTProto-прокси Telegram на Outline-VPS
 ├── CONTEXT.md             # Этот файл
 └── README.md              # Пользовательская документация
 ```

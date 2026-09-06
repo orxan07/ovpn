@@ -20,6 +20,10 @@
 | `/opt/wg-admin/server/.env` | AUTH_TOKEN |
 | `/opt/outline/` | если Outline-сервер на этом VPS |
 
+MTProto-прокси живёт на **другой** машине (`156.67.63.163`, `vm-pico`) и в этот
+архив не попадает. Secret: `/root/mtproto-secret.txt`, volume `mtproto-config`.
+См. [`docs/mtproto.md`](./mtproto.md).
+
 ## Регулярный бэкап
 
 На текущем VPS:

@@ -9,6 +9,7 @@
   - **WireGuard** (`wg0`, UDP/443) — для прямых WG-клиентов и sing-box pipeline
   - **SSTP** (TCP/14942, `accel-ppp`) — для роутеров за DPI-операторами (например Keenetic Hopper за МТС). См. [`infra/sstp/`](infra/sstp/) и [`docs/dpi-bypass.md`](docs/dpi-bypass.md)
 - **Обход блокировок**: sing-box + Outline/Shadowsocks
+- **Telegram без VPN**: MTProto-прокси на отдельной Outline-VPS (`156.67.63.163:443`). См. [`docs/mtproto.md`](docs/mtproto.md)
 - **Панель**: Node.js + Express + vanilla JS SPA
 - **Домен**: `https://vpn.rehimli.info` (nginx + Let's Encrypt)
 
@@ -102,6 +103,7 @@ ovpn/
 │   ├── dpi-bypass.md        # История: почему пришли к SSTP
 │   ├── keenetic-setup.md    # Настройка Keenetic Hopper как SSTP-клиента
 │   ├── runbook.md           # Operational-команды для всех сервисов
+│   ├── mtproto.md           # MTProto-прокси Telegram на Outline-VPS
 │   └── disaster-recovery.md # План переезда на новый VPS
 └── data/
     └── store.json           # Данные клиентов (создаётся автоматически)

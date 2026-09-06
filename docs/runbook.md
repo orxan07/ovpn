@@ -16,6 +16,8 @@
 | Конфиг WG | `/etc/wireguard/wg0.conf` + `/etc/wireguard/clients/` |
 | Конфиг SSTP | `/etc/accel-ppp.conf`, пользователи в `/etc/accel-ppp/chap-secrets` |
 | Логи SSTP | `/var/log/accel-ppp/accel-ppp.log` |
+| Outline-VPS | `156.67.63.163` (`vm-pico`), только Outline + MTProto |
+| MTProto (Telegram) | `156.67.63.163:443`, см. [`docs/mtproto.md`](./mtproto.md) |
 
 ## Сервисы и команды
 
@@ -44,6 +46,18 @@ sudo tail -f /var/log/accel-ppp/accel-ppp.log
 # nginx
 sudo systemctl status nginx
 sudo nginx -t && sudo systemctl reload nginx
+```
+
+### Outline-VPS (`156.67.63.163`) — MTProto
+
+Полный гайд: [`docs/mtproto.md`](./mtproto.md).
+
+```bash
+ssh root@156.67.63.163
+docker ps --filter name=mtproto-proxy
+docker logs --tail=50 mtproto-proxy
+docker exec mtproto-proxy curl -s http://127.0.0.1:2398/stats
+docker restart mtproto-proxy
 ```
 
 ## Диагностика «не работает интернет через VPN»
