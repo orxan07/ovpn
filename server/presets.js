@@ -129,9 +129,27 @@ const PRESETS = [
   },
   {
     name: 'OpenAI / ChatGPT',
+    // domain_suffix: openai.com уже кроет api/auth/chat.openai.com,
+    // chatgpt.com кроет ws.chatgpt.com и приложения.
+    // Источник доп. хостов: https://help.openai.com/en/articles/9247338-network-recommendations-for-chatgpt-errors-on-web-and-apps
+    // Без Statsig/WorkOS/Turnstile UI часто открывается, а логин и стриминг чата падают.
     domains: [
-      'openai.com', 'chatgpt.com', 'oaistatic.com',
-      'oaiusercontent.com', 'sora.com',
+      'openai.com',
+      'chatgpt.com',
+      'oaistatic.com',
+      'oaiusercontent.com',
+      'sora.com',
+      'oaistatsig.com',
+      'statsig.com',
+      'statsigapi.net',
+      'featuregates.org',
+      'featureassets.org',
+      'prodregistryv2.org',
+      'openaimerge.com',
+      'workos.com',
+      'workoscdn.com',
+      'workos.imgix.net',
+      'challenges.cloudflare.com',
     ],
     ipCidr: [],
   },
