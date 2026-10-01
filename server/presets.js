@@ -137,6 +137,11 @@ const PRESETS = [
     // Без них UI в браузере живой, а приложение крутит Reconnecting.
     domains: [
       'openai.com',
+      // Installed Codex CLI/app dependencies; openai.com does not cover openai.org.
+      'openai.org',            // auth.api.openai.org and platform.api.openai.org
+      'agent-plugins.org',
+      'oaisidekickupdates.blob.core.windows.net',
+      'cloudflare-dns.com',    // bundled app DNS-over-HTTPS resolver
       'chatgpt.com',
       'chat.com',
       'oaistatic.com',
@@ -169,6 +174,8 @@ const PRESETS = [
   },
   {
     name: 'Anthropic / Claude',
+    // Cursor also contains anthropic.com/claude.ai; those cannot identify this preset.
+    syncAnchors: ['claudeusercontent.com'],
     domains: [
       'anthropic.com',          // основной сайт + API (api.anthropic.com)
       'claude.ai',              // веб-чат
@@ -184,6 +191,7 @@ const PRESETS = [
       'api2.cursor.sh',         // main API / chat
       'api3.cursor.sh',         // Cursor Tab
       'api4.cursor.sh',         // Cursor Tab
+      'api5.cursor.sh',         // agent + NAL; domain_suffix covers nested agent hosts
       'repo42.cursor.sh',       // codebase indexing
       'authenticate.cursor.sh',
       'authenticator.cursor.sh',
@@ -194,8 +202,21 @@ const PRESETS = [
       'cursorapi.com',          // marketplace.cursorapi.com
       'marketplace.cursorapi.com',
       'cursor-cdn.com',         // CDN бинарей и обновлений
+      // Official network/auth requirements: domain_suffix includes nested hosts.
+      // https://prod.cursor.com/docs/enterprise/network-configuration
+      // https://prod.cursor.com/help/troubleshooting/sign-in-domains
+      'cursorvm.com',
+      'anysphere-binaries.s3.us-east-1.amazonaws.com',
+      'accounts.spacex.ai',
+      'accounts.x.ai',
+      'auth.x.ai',
+      'auth.grok.com',
+      'auth.grokusercontent.com',
+      'auth.grokipedia.com',
       'anysphere.co',           // компания/служебные auth/telemetry endpoints
       'anysphere.com',
+      'cursor.blob.core.windows.net', // Remote SSH serverDownloadUrlTemplate
+      'cloudflare-dns.com',           // bundled DNS-over-HTTPS resolver
       // VS Code marketplace/update dependencies, used by Cursor for extensions.
       'marketplace.visualstudio.com',
       'gallery.vsassets.io',

@@ -236,11 +236,32 @@ WireGuard конфиги и ключи хранятся в `/etc/wireguard/clien
 | WhatsApp | whatsapp.com, whatsapp.net, fbcdn.net, fbsbx.com, graph.facebook.com, ... | основные диапазоны AS32934 Meta |
 | Instagram / Facebook / Meta | facebook.com, facebook.net, fbcdn.net, fbcdn.com, mfbcdn.net, fbsbx.com, instagram.com, ... | основные диапазоны AS32934 Meta |
 | Discord | discord.com, discordapp.com, ... | — |
-| OpenAI / ChatGPT | openai.com, chatgpt.com, chat.com, oaistatic.com, Statsig, WorkOS, LiveKit, humb.apple.com, Azure Web PubSub, Intercom, Stripe, Sentry, Datadog, ... | — |
+| OpenAI / ChatGPT (включая Codex) | openai.com, openai.org, agent-plugins.org, oaisidekickupdates.blob.core.windows.net, chatgpt.com, chat.com, oaistatic.com, Statsig, WorkOS, LiveKit, humb.apple.com, Azure Web PubSub, Intercom, Stripe, Sentry, Datadog, ... | — |
 | Anthropic / Claude | anthropic.com, claude.ai, ... | — |
-| Cursor | api2.cursor.sh, api3.cursor.sh, repo42.cursor.sh, cursorapi.com, cursor-cdn.com, VS Code/GitHub deps, ... | — |
+| Cursor | cursor.sh (включая api5 и вложенные agent-хосты), cursorvm.com, accounts.x.ai, accounts.spacex.ai, хосты обновлений и Remote SSH, VS Code/GitHub deps, ... | — |
 | Netflix | netflix.com, nflxvideo.net, fast.com, ... | 12 диапазонов AS2906 (Open Connect) |
 | BlueStacks | bluestacks.com, cdn3.bluestacks.com, cloud.bluestacks.com, Google Play/Android deps, ... | — |
 | GameLoop / Tencent | gameloop.com, unifiedaccess.gameloop.com, qq.com, gtimg.com, qcloud.com, tencentgames.com, ... | — |
 
 IP-диапазоны нужны для звонков и медиа (WhatsApp, Telegram) — они используют прямые IP без DNS.
+
+
+Codex использует пресет **OpenAI / ChatGPT**. Список содержит дополнительные
+хосты, найденные в установленных CLI и desktop-приложениях: авторизацию
+`auth.api.openai.org`, плагины `agent-plugins.org`, загрузки
+`oaisidekickupdates.blob.core.windows.net` и DNS-over-HTTPS
+`cloudflare-dns.com`. Основные API и WebSocket-хосты покрываются суффиксами
+`openai.com` и `chatgpt.com`.
+
+Пресет Cursor включает хосты из [официальных сетевых требований](https://prod.cursor.com/docs/enterprise/network-configuration)
+и [списка доменов входа](https://prod.cursor.com/help/troubleshooting/sign-in-domains).
+Один суффикс `cursorvm.com` покрывает и вложенные поддомены. Для загрузки
+Remote SSH-сервера добавлен `cursor.blob.core.windows.net` из конфигурации
+установленного Cursor. Если пресет уже применён, deploy добавляет новые
+хосты в DNS и маршруты без повторного ручного применения.
+
+Синхронизация Claude использует его отдельный домен `claudeusercontent.com`:
+домены `anthropic.com` и `claude.ai` также входят в Cursor и сами по себе
+не включают полный пресет Claude. Если они были добавлены вручную или
+сохранились от старого неполного пресета, примените **Anthropic / Claude**
+в панели один раз для дальнейшей автоматической синхронизации.
