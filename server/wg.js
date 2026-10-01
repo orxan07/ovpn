@@ -1,4 +1,6 @@
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
+const os = require('os');
+const { randomBytes } = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -235,64 +237,157 @@ function renameClient(oldName, newName) {
     throw new Error(`Клиент ${newName} уже существует`);
   }
 
-  for (const ext of ['.key', '.pub', '.conf']) {
+  for (const ext of ['.key', '.pub', '.conf', '.blocked']) {
     const src = path.join(CLIENTS_DIR, `${oldName}${ext}`);
     const dst = path.join(CLIENTS_DIR, `${newName}${ext}`);
-    if (fs.existsSync(src)) run(`sudo mv ${src} ${dst}`);
+    if (fs.existsSync(src)) privileged('mv', ['--', src, dst]);
   }
+}
+
+// Keep configuration contents out of shell commands and subprocess error messages.
+function privileged(command, args) {
+  try {
+    return execFileSync('sudo', ['-n', command, ...args], {
+      encoding: 'utf8', timeout: 15000, stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch {
+    throw new Error(`Не удалось выполнить ${command}`);
+  }
+}
+
+function withPrivateFile(contents, action) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wg-admin-'));
+  const file = path.join(dir, 'config');
+  try {
+    fs.writeFileSync(file, contents, { mode: 0o600, flag: 'wx' });
+    return action(file);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+function atomicPrivilegedWrite(target, contents, preserveMode = false) {
+  const temporary = `${target}.${randomBytes(12).toString('hex')}.tmp`;
+  const stat = preserveMode ? fs.statSync(target) : null;
+  const mode = stat ? (stat.mode & 0o777).toString(8) : '600';
+  try {
+    withPrivateFile(contents, file => {
+      privileged('install', ['-m', mode, '-o', String(stat?.uid ?? 0), '-g', String(stat?.gid ?? 0), file, temporary]);
+      privileged('mv', ['-f', '--', temporary, target]);
+    });
+  } finally {
+    try { privileged('rm', ['-f', '--', temporary]); } catch {}
+  }
+}
+
+function splitWgSections(raw) {
+  return raw.split(/(?=^[ \t]*\[[^\]\r\n]+\][ \t]*(?:\r?\n|$))/m);
+}
+
+function peerPublicKey(section) {
+  if (!/^[ \t]*\[Peer\][ \t]*(?:\r?\n|$)/.test(section)) return null;
+  return section.match(/^[ \t]*PublicKey[ \t]*=[ \t]*([^\s#]+)/m)?.[1] || null;
+}
+
+function withoutPeer(raw, pubkey) {
+  return splitWgSections(raw).filter(section => peerPublicKey(section) !== pubkey).join('');
+}
+
+function getClientIdentity(name) {
+  validName(name);
+  const pubPath = path.join(CLIENTS_DIR, `${name}.pub`);
+  if (!fs.existsSync(pubPath)) throw new Error(`Клиент ${name} не найден`);
+  const pubkey = fs.readFileSync(pubPath, 'utf8').trim();
+  if (!/^[A-Za-z0-9+/]{43}=$/.test(pubkey)) throw new Error('Некорректный публичный ключ клиента');
+  return { pubkey, blockedPath: path.join(CLIENTS_DIR, `${name}.blocked`) };
+}
+
+function readSavedPeer(blockedPath, pubkey) {
+  if (!fs.existsSync(blockedPath)) return null;
+  const block = privileged('cat', ['--', blockedPath]);
+  const sections = splitWgSections(block).filter(part => part.trim());
+  if (sections.length !== 1 || peerPublicKey(sections[0]) !== pubkey ||
+      /^[ \t]*PrivateKey[ \t]*=/m.test(block)) {
+    throw new Error('Некорректный сохранённый блок клиента');
+  }
+  return block;
+}
+
+function fallbackPeer(name, pubkey) {
+  const conf = fs.readFileSync(path.join(CLIENTS_DIR, `${name}.conf`), 'utf8');
+  const ip = conf.match(/^[ \t]*Address[ \t]*=[ \t]*([\d.]+)(?:\/\d+)?[ \t]*$/m)?.[1];
+  if (!ip || require('net').isIP(ip) !== 4) throw new Error('Не удалось прочитать IP клиента');
+  return `[Peer]\nPublicKey = ${pubkey}\nAllowedIPs = ${ip}/32\n`;
 }
 
 function blockClient(name) {
-  validName(name);
-  const pubPath = path.join(CLIENTS_DIR, `${name}.pub`);
-  if (!fs.existsSync(pubPath)) throw new Error(`Клиент ${name} не найден`);
-  const pubkey = fs.readFileSync(pubPath, 'utf8').trim();
-  // Убираем из runtime — handshake пропадёт, трафик не пойдёт
-  run(`sudo wg set ${WG_INTERFACE} peer ${pubkey} remove`);
+  const { pubkey, blockedPath } = getClientIdentity(name);
+  try {
+    const raw = privileged('cat', ['--', WG_CONF]);
+    const matching = splitWgSections(raw).filter(section => peerPublicKey(section) === pubkey);
+    // Save before removing: never lose preshared keys, endpoints or keepalive.
+    const saved = readSavedPeer(blockedPath, pubkey);
+    if (!saved) {
+      const block = matching.at(-1) || fallbackPeer(name, pubkey);
+      if (/^[ \t]*PrivateKey[ \t]*=/m.test(block)) throw new Error('Некорректный блок клиента');
+      atomicPrivilegedWrite(blockedPath, block);
+    }
+    const cleaned = withoutPeer(raw, pubkey);
+    if (cleaned !== raw) atomicPrivilegedWrite(WG_CONF, cleaned, true);
+  } finally {
+    // Persist first, but still revoke runtime access if saving fails.
+    privileged('wg', ['set', WG_INTERFACE, 'peer', pubkey, 'remove']);
+  }
 }
 
 function unblockClient(name) {
-  validName(name);
-  const pubPath = path.join(CLIENTS_DIR, `${name}.pub`);
-  if (!fs.existsSync(pubPath)) throw new Error(`Клиент ${name} не найден`);
-  const pubkey = fs.readFileSync(pubPath, 'utf8').trim();
-  const confPath = path.join(CLIENTS_DIR, `${name}.conf`);
-  const conf = fs.readFileSync(confPath, 'utf8');
-  const ip = conf.match(/Address\s*=\s*([\d.]+)/)?.[1];
-  if (!ip) throw new Error('Не удалось прочитать IP клиента');
-  run(`sudo wg set ${WG_INTERFACE} peer ${pubkey} allowed-ips ${ip}/32`);
+  const { pubkey, blockedPath } = getClientIdentity(name);
+  const raw = privileged('cat', ['--', WG_CONF]);
+  const existing = splitWgSections(raw).filter(section => peerPublicKey(section) === pubkey);
+  const saved = readSavedPeer(blockedPath, pubkey);
+  const block = saved || existing.at(-1) || fallbackPeer(name, pubkey);
+  if (/^[ \t]*PrivateKey[ \t]*=/m.test(block)) throw new Error('Некорректный блок клиента');
+  // Retain recovery details even for legacy blocks until every step succeeds.
+  if (!saved) atomicPrivilegedWrite(blockedPath, block);
+  const cleaned = withoutPeer(raw, pubkey);
+  const restored = `${cleaned.trimEnd()}\n\n${block.trimEnd()}\n`;
+  atomicPrivilegedWrite(WG_CONF, restored, true);
+  try {
+    withPrivateFile(block, file => privileged('wg', ['addconf', WG_INTERFACE, file]));
+    privileged('rm', ['-f', '--', blockedPath]);
+  } catch (error) {
+    // Fail closed: retain saved details and remove persistent/runtime access.
+    try { atomicPrivilegedWrite(WG_CONF, cleaned, true); }
+    finally {
+      try { privileged('wg', ['set', WG_INTERFACE, 'peer', pubkey, 'remove']); } catch {}
+    }
+    throw error;
+  }
+}
+
+function reconcileBlockedClients(names) {
+  const result = { blocked: [], errors: [] };
+  for (const name of names) {
+    try { blockClient(name); result.blocked.push(name); }
+    catch (error) { result.errors.push({ name, error: error.message }); }
+  }
+  return result;
 }
 
 function removePeerFromWgConf(pubkey) {
-  const raw = fs.readFileSync(WG_CONF, 'utf8');
-  const lines = raw.split('\n');
-  const result = [];
-  let skip = false;
+  const raw = privileged('cat', ['--', WG_CONF]);
+  const cleaned = withoutPeer(raw, pubkey);
+  if (raw !== cleaned) atomicPrivilegedWrite(WG_CONF, cleaned, true);
+}
 
-  for (let i = 0; i < lines.length; i++) {
-    const trimmed = lines[i].trim();
-    if (trimmed === '[Peer]') {
-      const block = [];
-      let j = i;
-      let blockPubkey = null;
-      while (j < lines.length) {
-        const lt = lines[j].trim();
-        if (j > i && (lt === '[Peer]' || lt === '[Interface]')) break;
-        block.push(lines[j]);
-        const pkMatch = lt.match(/^PublicKey\s*=\s*(.+)/);
-        if (pkMatch) blockPubkey = pkMatch[1].trim();
-        j++;
-      }
-      if (blockPubkey === pubkey) {
-        i = j - 1;
-        continue;
-      }
-    }
-    result.push(lines[i]);
+// Diagnostics removes orphan peers without modifying client files or metadata.
+function removePeerByPublicKey(pubkey) {
+  if (typeof pubkey !== 'string' || !/^[A-Za-z0-9+/]{43}=$/.test(pubkey) ||
+      Buffer.from(pubkey, 'base64').toString('base64') !== pubkey) {
+    throw new Error('Некорректный публичный ключ клиента');
   }
-
-  const cleaned = result.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
-  run(`sudo bash -c 'cat > ${WG_CONF} << "WGEOF"\n${cleaned}WGEOF'`);
+  removePeerFromWgConf(pubkey);
+  privileged('wg', ['set', WG_INTERFACE, 'peer', pubkey, 'remove']);
 }
 
 function deleteClient(name) {
@@ -303,12 +398,12 @@ function deleteClient(name) {
 
   const pubkey = fs.readFileSync(pubPath, 'utf8').trim();
 
-  run(`sudo wg set ${WG_INTERFACE} peer ${pubkey} remove`);
   removePeerFromWgConf(pubkey);
+  privileged('wg', ['set', WG_INTERFACE, 'peer', pubkey, 'remove']);
 
-  for (const ext of ['.key', '.pub', '.conf']) {
+  for (const ext of ['.key', '.pub', '.conf', '.blocked']) {
     const f = path.join(CLIENTS_DIR, `${name}${ext}`);
-    if (fs.existsSync(f)) run(`sudo rm ${f}`);
+    if (fs.existsSync(f)) privileged('rm', ['--', f]);
   }
 }
 
@@ -462,6 +557,8 @@ module.exports = {
   renameClient,
   blockClient,
   unblockClient,
+  reconcileBlockedClients,
+  removePeerByPublicKey,
   deleteClient,
   getClientConf,
   getClientQr,

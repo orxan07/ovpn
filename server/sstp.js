@@ -185,13 +185,18 @@ function parseSessions(raw) {
   return sessions;
 }
 
+let sessionsSnapshot = null;
 function getSessions() {
+  if (sessionsSnapshot && Date.now() - sessionsSnapshot.time < 1000) return sessionsSnapshot.value;
   const raw = safeRun('sudo /usr/sbin/accel-cmd "show sessions ifname,username,called-sid,sid,uptime,type,ip"');
   if (!raw) return [];
-  return parseSessions(raw);
+  const value = parseSessions(raw);
+  sessionsSnapshot = { time: Date.now(), value };
+  return value;
 }
 
 function disconnectSession(ifname) {
+  sessionsSnapshot = null;
   if (!/^sstp\d+$/.test(ifname)) throw new Error('Некорректный ifname');
   safeRun(`sudo /usr/sbin/accel-cmd "terminate if ${ifname}"`);
   return { ok: true };

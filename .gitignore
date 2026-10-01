@@ -14,3 +14,6 @@ keenetic*.conf
 backups/
 *.tar.gz
 *.tgz
+
+# реквизиты панели и прокси
+data/

@@ -1,30 +1,37 @@
-const { execSync } = require('child_process');
+const { execFile } = require('child_process');
 const fs = require('fs');
 
-function run(cmd) {
+let lastCpu = null;
+let cpuPercent = 0;
+let diskStats = null;
+let refreshingDisk = false;
+let networkSpeed = { rxSpeed: 0, txSpeed: 0 };
+
+function sampleCpu() {
   try {
-    return execSync(cmd, { encoding: 'utf8' }).trim();
-  } catch {
-    return '';
-  }
+    const vals = fs.readFileSync('/proc/stat', 'utf8').split('\n')[0].trim().split(/\s+/).slice(1).map(Number);
+    // guest and guest_nice are already included in user/nice.
+    const current = { idle: vals[3] + vals[4], total: vals.slice(0, 8).reduce((a, b) => a + b, 0) };
+    if (lastCpu) {
+      const total = current.total - lastCpu.total;
+      if (total > 0) cpuPercent = Math.max(0, Math.min(100, Math.round((1 - (current.idle - lastCpu.idle) / total) * 100)));
+    }
+    lastCpu = current;
+  } catch {}
 }
 
-function getCpuPercent() {
-  // Читаем /proc/stat дважды с паузой для вычисления %
-  const parse = () => {
-    const line = fs.readFileSync('/proc/stat', 'utf8').split('\n')[0];
-    const vals = line.split(/\s+/).slice(1).map(Number);
-    const idle = vals[3] + vals[4]; // idle + iowait
-    const total = vals.reduce((a, b) => a + b, 0);
-    return { idle, total };
-  };
-  const a = parse();
-  // синхронная пауза 100ms
-  execSync('sleep 0.1');
-  const b = parse();
-  const diffIdle = b.idle - a.idle;
-  const diffTotal = b.total - a.total;
-  return diffTotal ? Math.round((1 - diffIdle / diffTotal) * 100) : 0;
+function getCpuPercent() { return cpuPercent; }
+
+function refreshDisk() {
+  if (refreshingDisk) return;
+  refreshingDisk = true;
+  execFile('df', ['-B1', '--output=size,used,avail', '/'], { encoding: 'utf8', timeout: 5000, maxBuffer: 16384 }, (error, stdout) => {
+    refreshingDisk = false;
+    if (error) return;
+    const values = stdout.trim().split('\n').slice(1).join(' ').trim().split(/\s+/).map(Number);
+    const [total, used, free] = values;
+    if (values.length === 3 && values.every(Number.isFinite) && total > 0) diskStats = { total, used, free, percent: Math.round(used / total * 100) };
+  });
 }
 
 function getMemory() {
@@ -39,15 +46,7 @@ function getMemory() {
   return { total, used, free: available, percent: Math.round(used / total * 100) };
 }
 
-function getDisk() {
-  const line = run('df -B1 /').split('\n')[1];
-  if (!line) return null;
-  const parts = line.split(/\s+/);
-  const total = parseInt(parts[1]);
-  const used = parseInt(parts[2]);
-  const free = parseInt(parts[3]);
-  return { total, used, free, percent: Math.round(used / total * 100) };
-}
+function getDisk() { return diskStats; }
 
 function getNetwork() {
   // Читаем /proc/net/dev для интерфейса enp2s0
@@ -77,6 +76,7 @@ function getNetworkSpeed() {
   }
 
   const dt = (now - _lastNetTime) / 1000;
+  if (dt <= 0) return { rxSpeed: 0, txSpeed: 0 };
   const rxSpeed = Math.round((current.rxBytes - _lastNet.rxBytes) / dt);
   const txSpeed = Math.round((current.txBytes - _lastNet.txBytes) / dt);
 
@@ -104,10 +104,19 @@ function getStats() {
     cpu: getCpuPercent(),
     memory: getMemory(),
     disk: getDisk(),
-    network: getNetworkSpeed(),
+    network: { ...networkSpeed },
     uptime: getUptime(),
     loadAvg: getLoadAvg(),
   };
 }
+
+// Sample independently of HTTP request frequency; timers do not keep Node alive.
+sampleCpu();
+refreshDisk();
+setInterval(() => {
+  sampleCpu();
+  try { networkSpeed = getNetworkSpeed(); } catch {}
+}, 1000).unref();
+setInterval(refreshDisk, 30000).unref();
 
 module.exports = { getStats };

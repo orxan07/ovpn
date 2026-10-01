@@ -2,6 +2,7 @@ const { execFileSync, execSync } = require('child_process');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { readConfig, applyConfig } = require('./singbox-config');
 
 const SINGBOX_CONF = '/etc/sing-box/config.json';
 const DATA_DIR = path.join(__dirname, '../data');
@@ -9,35 +10,6 @@ const PROFILES_FILE = path.join(DATA_DIR, 'outline-profiles.json');
 
 function run(cmd) {
   return execSync(cmd, { encoding: 'utf8' }).trim();
-}
-
-function readConfig() {
-  return JSON.parse(run(`sudo cat ${SINGBOX_CONF}`));
-}
-
-function writeConfig(config) {
-  const json = JSON.stringify(config, null, 2);
-  const tmp = `/tmp/singbox-config-${Date.now()}.json`;
-  fs.writeFileSync(tmp, json, { mode: 0o600 });
-  try {
-    try {
-      execFileSync('sing-box', ['check', '-c', tmp], { stdio: 'pipe' });
-    } catch (e) {
-      const details = [e.stdout, e.stderr]
-        .filter(Boolean)
-        .map(v => v.toString().trim())
-        .filter(Boolean)
-        .join('\n');
-      throw new Error(`sing-box check failed${details ? `: ${details}` : ''}`);
-    }
-    run(`sudo cp ${tmp} ${SINGBOX_CONF}`);
-  } finally {
-    try { fs.unlinkSync(tmp); } catch {}
-  }
-}
-
-function restartSingbox() {
-  run('sudo systemctl restart sing-box');
 }
 
 function loadStore() {
@@ -210,8 +182,7 @@ function writeActiveOutline(outbound) {
   outbounds[idx] = outbound;
   config.outbounds = outbounds;
 
-  writeConfig(config);
-  restartSingbox();
+  applyConfig(config);
 }
 
 function ensureInitialProfile() {

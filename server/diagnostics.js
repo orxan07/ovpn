@@ -1,16 +1,52 @@
-const { execSync, spawn } = require('child_process');
+const { execFileSync, execFile, spawn } = require('child_process');
+const { promisify } = require('util');
+const fs = require('fs');
+const path = require('path');
+const execute = promisify(execFile);
 const net = require('net');
 
-function run(cmd, timeout = 5000) {
+function run(file, args = [], timeout = 5000) {
   try {
-    return execSync(cmd, { encoding: 'utf8', timeout }).trim();
+    return execFileSync(file, args, { encoding: 'utf8', timeout, maxBuffer: 1024 * 1024 }).trim();
   } catch (e) {
     return e.stdout ? e.stdout.trim() : `error: ${e.message}`;
   }
 }
 
+async function runAsync(file, args, timeout = 5000) {
+  try {
+    const { stdout, stderr } = await execute(file, args, { encoding: 'utf8', timeout, maxBuffer: 1024 * 1024 });
+    return (stdout + stderr).trim();
+  } catch (e) {
+    return (e.stdout || e.stderr || `error: ${e.message}`).trim();
+  }
+}
+
+function hostValue(value) {
+  if (typeof value !== 'string' || value.length > 253 || !value || value.startsWith('-')) throw new Error('Invalid host');
+  if (net.isIP(value)) return value;
+  if (!value.split('.').every(label => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label))) throw new Error('Invalid host');
+  return value;
+}
+
+function boundedInteger(value, min, max, label) {
+  if (!Number.isInteger(value) || value < min || value > max) throw new Error(`Invalid ${label}`);
+  return value;
+}
+
+function redactSecrets(value) {
+  if (Array.isArray(value)) return value.map(redactSecrets);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) =>
+    [key, /password|secret|private.?key|pre.?shared.?key|token|credential/i.test(key) ? '[redacted]' : redactSecrets(item)]));
+  return value;
+}
+
+function redactWg(raw) {
+  return raw.replace(/^(\s*(?:PrivateKey|PresharedKey)\s*=).*$/gmi, '$1 [redacted]');
+}
+
 function getPeersDetailed() {
-  const dump = run('sudo wg show wg0 dump');
+  const dump = run('sudo', ['-n', 'wg', 'show', 'wg0', 'dump']);
   if (!dump || dump.startsWith('error')) return [];
 
   const lines = dump.split('\n');
@@ -40,7 +76,7 @@ function getPeersDetailed() {
 }
 
 function getInterfaces() {
-  const raw = run('ip -j addr show');
+  const raw = run('ip', ['-j', 'addr', 'show']);
   try {
     return JSON.parse(raw).map(iface => ({
       name: iface.ifname,
@@ -49,74 +85,77 @@ function getInterfaces() {
       addresses: (iface.addr_info || []).map(a => `${a.local}/${a.prefixlen}`),
     }));
   } catch {
-    return run('ip addr show');
+    return run('ip', ['addr', 'show']);
   }
 }
 
 function getRoutes() {
-  return run('ip route show').split('\n').filter(Boolean);
+  return run('ip', ['route', 'show']).split('\n').filter(Boolean);
 }
 
 function getIpForward() {
-  return run('sysctl -n net.ipv4.ip_forward') === '1';
+  return run('sysctl', ['-n', 'net.ipv4.ip_forward']) === '1';
 }
 
 function getIptablesNat() {
-  return run('sudo iptables -t nat -L POSTROUTING -v -n --line-numbers');
+  return run('sudo', ['-n', 'iptables', '-t', 'nat', '-L', 'POSTROUTING', '-v', '-n', '--line-numbers']);
 }
 
 function getIptablesForward() {
-  return run('sudo iptables -L FORWARD -v -n --line-numbers');
+  return run('sudo', ['-n', 'iptables', '-L', 'FORWARD', '-v', '-n', '--line-numbers']);
 }
 
 function getNftSingbox() {
-  const full = run('sudo nft list ruleset', 10000);
+  const full = run('sudo', ['-n', 'nft', 'list', 'ruleset'], 10000);
   const match = full.match(/table inet sing-box \{[\s\S]*?\n\}/);
   return match ? match[0] : 'sing-box nftables table not found';
 }
 
 function getSingboxConfig() {
-  return run('sudo cat /etc/sing-box/config.json');
+  const raw = run('sudo', ['-n', 'cat', '/etc/sing-box/config.json']);
+  if (raw.startsWith('error')) return raw;
+  try { return JSON.stringify(redactSecrets(JSON.parse(raw)), null, 2); }
+  catch { return 'error: Invalid sing-box config'; }
 }
 
-function pingTest(target, count = 4) {
-  return run(`ping -c ${count} -W 2 ${target}`, 15000);
+async function pingTest(target, count = 4) {
+  return runAsync('ping', ['-c', String(boundedInteger(count, 1, 10, 'count')), '-W', '2', hostValue(target)], 25000);
 }
 
-function dnsTest(domain) {
-  const result = {};
-  result.nslookup = run(`nslookup ${domain} 2>&1`, 5000);
-  result.dig = run(`dig +short ${domain} 2>&1`, 5000);
-  return result;
+async function dnsTest(domain) {
+  const host = hostValue(domain);
+  const [nslookup, dig] = await Promise.all([
+    runAsync('nslookup', [host], 5000), runAsync('dig', ['+short', host], 5000),
+  ]);
+  return { nslookup, dig };
 }
 
 function tcpdumpCapture(iface, filter, count = 10, timeout = 8) {
-  return new Promise((resolve) => {
+  if (typeof iface !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]{0,14}$/.test(iface)) throw new Error('Invalid interface');
+  boundedInteger(count, 1, 50, 'count');
+  boundedInteger(timeout, 1, 15, 'timeout');
+  if (typeof filter !== 'string' || filter.length > 512 || !/^[a-zA-Z0-9.:/()&|! \t]*$/.test(filter)) throw new Error('Invalid capture filter');
+  return new Promise((resolve, reject) => {
     let output = '';
-    const args = ['-i', iface, '-c', String(count), '-n'];
-    if (filter) args.push(...filter.split(' '));
-
-    const proc = spawn('sudo', ['tcpdump', ...args], {
-      timeout: timeout * 1000,
-    });
-
-    proc.stdout.on('data', d => output += d.toString());
-    proc.stderr.on('data', d => output += d.toString());
-
+    const proc = spawn('sudo', ['-n', 'tcpdump', '-i', iface, '-c', String(count), '-n', '--', ...filter.trim().split(/\s+/).filter(Boolean)]);
+    const append = d => { output = (output + d.toString()).slice(0, 1024 * 1024); };
+    proc.stdout.on('data', append);
+    proc.stderr.on('data', append);
+    let killTimer;
     const timer = setTimeout(() => {
       proc.kill('SIGTERM');
+      killTimer = setTimeout(() => proc.kill('SIGKILL'), 1000);
+      killTimer.unref();
     }, timeout * 1000);
-
-    proc.on('close', () => {
-      clearTimeout(timer);
-      resolve(output.trim());
-    });
+    proc.on('error', e => { clearTimeout(timer); clearTimeout(killTimer); reject(e); });
+    proc.on('close', () => { clearTimeout(timer); clearTimeout(killTimer); resolve(output.trim()); });
   });
 }
 
-function getSingboxLogs(peerIp, lines = 50) {
-  let cmd = `sudo journalctl -u sing-box --no-pager -n ${lines} --output=short-iso`;
-  const raw = run(cmd, 10000);
+async function getSingboxLogs(peerIp, lines = 50) {
+  boundedInteger(lines, 1, 200, 'lines');
+  if (peerIp && (typeof peerIp !== 'string' || !net.isIP(peerIp))) throw new Error('Invalid peer IP');
+  const raw = await runAsync('sudo', ['-n', 'journalctl', '-u', 'sing-box', '--no-pager', '-n', String(lines), '--output=short-iso'], 10000);
   if (!peerIp) return raw;
   return raw.split('\n').filter(l => l.includes(peerIp)).join('\n') || `No logs found for ${peerIp}`;
 }
@@ -132,12 +171,17 @@ function getOverview() {
   };
 }
 
-function curlTest(url, timeout = 5) {
-  return run(`curl -sS -o /dev/null -w "HTTP %{http_code} | Time: %{time_total}s | IP: %{remote_ip}" --max-time ${timeout} "${url}" 2>&1`, (timeout + 2) * 1000);
+async function curlTest(url, timeout = 5) {
+  boundedInteger(timeout, 1, 15, 'timeout');
+  if (typeof url !== 'string' || url.length > 2048) throw new Error('Invalid URL');
+  let parsed;
+  try { parsed = new URL(url); } catch { throw new Error('Invalid URL'); }
+  if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error('Only HTTP(S) URLs without credentials are supported');
+  return runAsync('curl', ['--proto', '=http,https', '-sS', '-o', '/dev/null', '-w', 'HTTP %{http_code} | Time: %{time_total}s | IP: %{remote_ip}', '--max-time', String(timeout), '--', parsed.href], (timeout + 2) * 1000);
 }
 
 function auditWgConfig() {
-  const raw = run('sudo cat /etc/wireguard/wg0.conf', 5000);
+  const raw = run('sudo', ['-n', 'cat', '/etc/wireguard/wg0.conf'], 5000);
   if (raw.startsWith('error')) return { error: raw };
 
   const peers = [];
@@ -158,14 +202,12 @@ function auditWgConfig() {
   }
   if (current) peers.push(current);
 
-  const clientFiles = run('ls /etc/wireguard/clients/*.pub 2>/dev/null', 5000);
   const nameMap = {};
-  if (clientFiles && !clientFiles.startsWith('error')) {
-    for (const f of clientFiles.split('\n').filter(Boolean)) {
-      const name = f.replace(/.*\//, '').replace('.pub', '');
-      const pk = run(`sudo cat "${f}"`, 3000).trim();
-      if (pk) nameMap[pk] = name;
-    }
+  let clientFiles = [];
+  try { clientFiles = fs.readdirSync('/etc/wireguard/clients').filter(name => name.endsWith('.pub')); } catch {}
+  for (const file of clientFiles) {
+    const pk = run('sudo', ['-n', 'cat', path.join('/etc/wireguard/clients', file)], 3000).trim();
+    if (pk && !pk.startsWith('error')) nameMap[pk] = file.slice(0, -4);
   }
 
   const ipMap = {};
@@ -191,7 +233,7 @@ function auditWgConfig() {
     }
   }
 
-  const runtimeDump = run('sudo wg show wg0 dump', 5000);
+  const runtimeDump = run('sudo', ['-n', 'wg', 'show', 'wg0', 'dump'], 5000);
   const runtimePeers = new Set();
   if (runtimeDump && !runtimeDump.startsWith('error')) {
     for (const line of runtimeDump.split('\n').slice(1)) {
@@ -222,39 +264,12 @@ function auditWgConfig() {
       inRuntime: p.inRuntime,
     })),
     issues,
-    raw: raw,
+    raw: redactWg(raw),
   };
 }
 
 function removePeerFromConfig(pubkey) {
-  const raw = run('sudo cat /etc/wireguard/wg0.conf', 5000);
-  if (raw.startsWith('error')) return { error: raw };
-
-  const lines = raw.split('\n');
-  const result = [];
-  let skip = false;
-
-  for (const line of lines) {
-    if (line.trim() === '[Peer]') {
-      skip = false;
-    }
-    if (line.trim().startsWith('PublicKey') && line.includes(pubkey)) {
-      // Remove the [Peer] header we just added
-      while (result.length && result[result.length - 1].trim() === '[Peer]') result.pop();
-      while (result.length && result[result.length - 1].trim() === '') result.pop();
-      skip = true;
-      continue;
-    }
-    if (skip && (line.trim() === '[Peer]' || line.trim() === '[Interface]')) {
-      skip = false;
-    }
-    if (!skip) result.push(line);
-  }
-
-  const newConf = result.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
-  run(`sudo bash -c 'cat > /etc/wireguard/wg0.conf << "WGEOF"\n${newConf}WGEOF'`, 5000);
-  run(`sudo wg set wg0 peer ${pubkey} remove`, 5000);
-
+  require('./wg').removePeerByPublicKey(pubkey);
   return { ok: true, removed: pubkey };
 }
 

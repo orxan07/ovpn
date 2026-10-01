@@ -1,25 +1,5 @@
 // Редактор whitelist доменов в /etc/sing-box/config.json
-const { execSync } = require('child_process');
-const fs = require('fs');
-
-const SINGBOX_CONF = '/etc/sing-box/config.json';
-
-function run(cmd) {
-  return execSync(cmd, { encoding: 'utf8' }).trim();
-}
-
-function readConfig() {
-  const raw = run(`sudo cat ${SINGBOX_CONF}`);
-  return JSON.parse(raw);
-}
-
-function writeConfig(config) {
-  const json = JSON.stringify(config, null, 2);
-  const tmp = `/tmp/singbox-config-${Date.now()}.json`;
-  require('fs').writeFileSync(tmp, json);
-  run(`sudo cp ${tmp} ${SINGBOX_CONF}`);
-  require('fs').unlinkSync(tmp);
-}
+const { readConfig, writeConfig, applyConfig } = require('./singbox-config');
 
 // Собирает уникальный список доменов из всех мест конфига где они есть
 function getDomains() {
@@ -70,8 +50,7 @@ function setRoutingMode(mode) {
   config.route = config.route || {};
   config.route.final = mode === 'all' ? 'outline' : 'direct';
 
-  writeConfig(config);
-  restartSingbox();
+  applyConfig(config);
 
   return getRoutingMode();
 }
@@ -106,7 +85,13 @@ function collectIpCidrs(config) {
 }
 
 function normalizeDomain(domain) {
-  return domain.toLowerCase().replace(/^[*.]+/, '');
+  if (typeof domain !== 'string') throw new Error('Домен должен быть строкой');
+  const normalized = domain.trim().toLowerCase().replace(/^\*\./, '').replace(/^\./, '');
+  if (normalized.length > 253 || !normalized.split('.').every(label =>
+    label.length > 0 && label.length <= 63 && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label))) {
+    throw new Error('Некорректный домен');
+  }
+  return normalized;
 }
 
 function addPresetToConfig(config, preset) {
@@ -187,8 +172,7 @@ function addDomain(domain) {
 
   if (!added) throw new Error(`Домен ${domain} уже есть или не найдены нужные правила`);
 
-  writeConfig(config);
-  restartSingbox();
+  applyConfig(config);
   return domain;
 }
 
@@ -208,16 +192,14 @@ function removeDomain(domain) {
     }
   }
 
-  writeConfig(config);
-  restartSingbox();
+  applyConfig(config);
 }
 
 // Применяет пресет: добавляет домены + ip_cidr, перезапускает sing-box один раз
 function applyPreset(preset) {
   const config = readConfig();
   addPresetToConfig(config, preset);
-  writeConfig(config);
-  restartSingbox();
+  applyConfig(config);
 }
 
 function isPresetApplied(config, preset) {
@@ -246,15 +228,10 @@ function syncAppliedPresets(presets) {
   }
 
   if (domainsAdded || ipCidrsAdded) {
-    writeConfig(config);
-    restartSingbox();
+    applyConfig(config);
   }
 
   return { changed: Boolean(domainsAdded || ipCidrsAdded), domainsAdded, ipCidrsAdded, presets: result };
-}
-
-function restartSingbox() {
-  run('sudo systemctl restart sing-box');
 }
 
 module.exports = {

@@ -3,22 +3,31 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const DATA_DIR = path.join(__dirname, '../data');
 const STORE_FILE = path.join(DATA_DIR, 'store.json');
 
 function load() {
-  if (!fs.existsSync(STORE_FILE)) return {};
+  if (!fs.existsSync(STORE_FILE)) return Object.create(null);
   try {
-    return JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
+    const data = JSON.parse(fs.readFileSync(STORE_FILE, 'utf8'));
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Invalid store');
+    return Object.assign(Object.create(null), data);
   } catch {
-    return {};
+    throw new Error('Не удалось прочитать store.json; изменения отменены');
   }
 }
 
 function save(data) {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.writeFileSync(STORE_FILE, JSON.stringify(data, null, 2));
+  const tmp = `${STORE_FILE}.${crypto.randomBytes(12).toString('hex')}.tmp`;
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(data, null, 2), { mode: 0o600, flag: 'wx' });
+    fs.renameSync(tmp, STORE_FILE);
+  } finally {
+    if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+  }
 }
 
 // Возвращает данные клиента (создаёт если нет)
@@ -59,22 +68,58 @@ function saveClient(name, data) {
   save(store);
 }
 
-// Добавляет endpoint в историю клиента (макс 20 уникальных IP)
-function trackEndpoint(name, endpoint) {
-  if (!endpoint) return;
-  const ip = endpoint.split(':')[0]; // только IP без порта
-  const client = getClient(name);
-
+// Обновляет один снимок; IPv6 endpoint приходит как [address]:port.
+function trackEndpointInSnapshot(client, endpoint, now) {
+  const ip = endpoint.startsWith('[') ? endpoint.slice(1, endpoint.indexOf(']')) : endpoint.split(':')[0];
+  client.endpoints = client.endpoints || [];
   const existing = client.endpoints.find(e => e.ip === ip);
   if (existing) {
-    existing.lastSeen = Date.now();
+    existing.lastSeen = now;
     existing.count = (existing.count || 1) + 1;
   } else {
-    client.endpoints.unshift({ ip, firstSeen: Date.now(), lastSeen: Date.now(), count: 1 });
-    if (client.endpoints.length > 20) client.endpoints = client.endpoints.slice(0, 20);
+    client.endpoints.unshift({ ip, firstSeen: now, lastSeen: now, count: 1 });
+    client.endpoints = client.endpoints.slice(0, 20);
   }
+}
 
+function trackEndpoint(name, endpoint) {
+  if (!endpoint) return;
+  const client = getClient(name);
+  trackEndpointInSnapshot(client, endpoint, Date.now());
   saveClient(name, client);
+}
+
+function updatePeers(peers, blockClient) {
+  const data = load();
+  let changed = false;
+  const now = Date.now();
+  for (const peer of peers) {
+    const client = data[peer.name] || { endpoints: [], blocked: false, limitGb: null, note: '' };
+    data[peer.name] = client;
+    if (peer.endpoint) {
+      trackEndpointInSnapshot(client, peer.endpoint, now);
+      changed = true;
+    }
+    if (client.limitGb && !client.blocked && (peer.rx + peer.tx) >= client.limitGb * 1024 ** 3) {
+      client.blocked = true;
+      changed = true;
+    }
+  }
+  // Persist the desired blocked state before touching runtime; retry on later polls.
+  if (changed) save(data);
+  for (const peer of peers) {
+    if (data[peer.name]?.blocked) blockClient(peer.name);
+  }
+}
+
+function deleteClient(name) {
+  const data = load();
+  delete data[name];
+  save(data);
+}
+
+function resetClient(name) {
+  saveClient(name, { endpoints: [], limitGb: null, blocked: false, note: '', createdAt: Date.now(), configToken: null });
 }
 
 // Блокировка
@@ -112,4 +157,4 @@ function renameClient(oldName, newName) {
   }
 }
 
-module.exports = { getClient, saveClient, trackEndpoint, setBlocked, setLimit, setNote, setCreatedAt, getAll, renameClient, generateConfigToken, findByConfigToken };
+module.exports = { deleteClient, resetClient, updatePeers, getClient, saveClient, trackEndpoint, setBlocked, setLimit, setNote, setCreatedAt, getAll, renameClient, generateConfigToken, findByConfigToken };

@@ -130,12 +130,15 @@ const PRESETS = [
   {
     name: 'OpenAI / ChatGPT',
     // domain_suffix: openai.com уже кроет api/auth/chat.openai.com,
-    // chatgpt.com кроет ws.chatgpt.com и приложения.
-    // Источник доп. хостов: https://help.openai.com/en/articles/9247338-network-recommendations-for-chatgpt-errors-on-web-and-apps
-    // Без Statsig/WorkOS/Turnstile UI часто открывается, а логин и стриминг чата падают.
+    // chatgpt.com кроет ws.chatgpt.com.
+    // Сайт этого набора хватает. Native Mac app ещё ходит на LiveKit,
+    // Apple (humb), Azure Web PubSub и служебные хосты из официального списка:
+    // https://help.openai.com/en/articles/9247338-network-recommendations-for-chatgpt-errors-on-web-and-apps
+    // Без них UI в браузере живой, а приложение крутит Reconnecting.
     domains: [
       'openai.com',
       'chatgpt.com',
+      'chat.com',
       'oaistatic.com',
       'oaiusercontent.com',
       'sora.com',
@@ -150,6 +153,17 @@ const PRESETS = [
       'workoscdn.com',
       'workos.imgix.net',
       'challenges.cloudflare.com',
+      // Mac / Advanced Voice / realtime
+      'livekit.cloud',
+      'humb.apple.com',
+      'webpubsub.azure.com',
+      // официальный allowlist: support, billing, telemetry
+      'intercom.io',
+      'intercomcdn.com',
+      'ct.sendgrid.net',
+      'stripe.com',
+      'sentry.io',
+      'datadoghq.com',
     ],
     ipCidr: [],
   },

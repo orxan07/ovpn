@@ -11,6 +11,7 @@ const { PRESETS } = require('./presets');
 const diag = require('./diagnostics');
 const sstp = require('./sstp');
 const outline = require('./outline');
+const mtproto = require('./mtproto');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -88,8 +89,17 @@ app.post('/api/peers', (req, res) => {
   try {
     const { name } = req.body;
     if (!name) return res.status(400).json({ error: 'name обязателен' });
+    if (wg.getPeersWithStatus().some(peer => peer.name === name)) {
+      return res.status(400).json({ error: 'Клиент уже существует' });
+    }
+    // Revoke orphaned tokens before this name can refer to another private key.
+    store.deleteClient(name);
     const result = wg.createClient(name);
-    store.setCreatedAt(name, Date.now());
+    try { store.resetClient(name); }
+    catch (e) {
+      try { wg.deleteClient(name); } catch { console.error('[create] Не удалось откатить создание клиента'); }
+      throw e;
+    }
     res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -104,8 +114,8 @@ app.patch('/api/peers/:name', (req, res) => {
       wg.renameClient(req.params.name, newName);
       store.renameClient(req.params.name, newName);
     }
-    if (note !== undefined) store.setNote(req.params.name, note);
-    if (limitGb !== undefined) store.setLimit(req.params.name, limitGb === '' ? null : Number(limitGb));
+    if (note !== undefined) store.setNote(newName || req.params.name, note);
+    if (limitGb !== undefined) store.setLimit(newName || req.params.name, limitGb === '' ? null : Number(limitGb));
 
     res.json({ ok: true, name: newName || req.params.name });
   } catch (e) {
@@ -115,6 +125,7 @@ app.patch('/api/peers/:name', (req, res) => {
 
 app.delete('/api/peers/:name', (req, res) => {
   try {
+    store.deleteClient(req.params.name);
     wg.deleteClient(req.params.name);
     res.json({ ok: true });
   } catch (e) {
@@ -125,8 +136,8 @@ app.delete('/api/peers/:name', (req, res) => {
 // Блокировка
 app.post('/api/peers/:name/block', (req, res) => {
   try {
-    wg.blockClient(req.params.name);
     store.setBlocked(req.params.name, true);
+    wg.blockClient(req.params.name);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -280,6 +291,25 @@ app.get('/api/system/check', (req, res) => {
   }
 
   res.json(results);
+});
+
+// Реквизиты MTProto для Telegram; удалённый контейнер не изменяется.
+app.get('/api/mtproto', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    res.json(await mtproto.getConfig());
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/mtproto', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    res.json(await mtproto.setConfig(req.body));
+  } catch (e) {
+    res.status(e instanceof mtproto.ValidationError ? 400 : 500).json({ error: e.message });
+  }
 });
 
 app.get('/api/outline', (req, res) => {
@@ -582,22 +612,22 @@ app.get('/api/diag/peers', (req, res) => {
   }
 });
 
-app.post('/api/diag/ping', (req, res) => {
+app.post('/api/diag/ping', async (req, res) => {
   try {
     const { target, count } = req.body;
     if (!target) return res.status(400).json({ error: 'target обязателен' });
-    const result = diag.pingTest(target, Math.min(count || 4, 10));
+    const result = await diag.pingTest(target, Math.min(count || 4, 10));
     res.json({ result });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-app.post('/api/diag/dns', (req, res) => {
+app.post('/api/diag/dns', async (req, res) => {
   try {
     const { domain } = req.body;
     if (!domain) return res.status(400).json({ error: 'domain обязателен' });
-    res.json(diag.dnsTest(domain));
+    res.json(await diag.dnsTest(domain));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -618,10 +648,10 @@ app.post('/api/diag/tcpdump', async (req, res) => {
   }
 });
 
-app.get('/api/diag/logs', (req, res) => {
+app.get('/api/diag/logs', async (req, res) => {
   try {
     const { peer, lines } = req.query;
-    const result = diag.getSingboxLogs(peer, Math.min(parseInt(lines) || 50, 200));
+    const result = await diag.getSingboxLogs(peer, Math.min(parseInt(lines) || 50, 200));
     res.json({ result });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -652,11 +682,11 @@ app.get('/api/diag/routes', (req, res) => {
   }
 });
 
-app.post('/api/diag/curl', (req, res) => {
+app.post('/api/diag/curl', async (req, res) => {
   try {
     const { url, timeout } = req.body;
     if (!url) return res.status(400).json({ error: 'url обязателен' });
-    const result = diag.curlTest(url, Math.min(timeout || 5, 15));
+    const result = await diag.curlTest(url, Math.min(timeout || 5, 15));
     res.json({ result });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -682,11 +712,11 @@ app.get('/api/diag/audit', (req, res) => {
   }
 });
 
-app.post('/api/diag/remove-peer', (req, res) => {
+app.post('/api/diag/remove-peer', async (req, res) => {
   try {
     const { pubkey } = req.body;
     if (!pubkey) return res.status(400).json({ error: 'pubkey обязателен' });
-    res.json(diag.removePeerFromConfig(pubkey));
+    res.json(await diag.removePeerFromConfig(pubkey));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -695,34 +725,27 @@ app.post('/api/diag/remove-peer', (req, res) => {
 // ── Фоновый поллинг ────────────────────────────────────
 // Каждые 30 сек: трекаем endpoint'ы и проверяем лимиты
 
-setInterval(() => {
+function pollPeers() {
   try {
     const peers = wg.getPeersWithStatus();
-    const storeData = store.getAll();
-
-    for (const p of peers) {
-      // Трекаем endpoint
-      if (p.endpoint) store.trackEndpoint(p.name, p.endpoint);
-
-      // Проверяем лимит трафика
-      const s = storeData[p.name];
-      if (s?.limitGb && !s.blocked) {
-        const totalGb = (p.rx + p.tx) / 1024 / 1024 / 1024;
-        if (totalGb >= s.limitGb) {
-          console.log(`[limit] Блокируем ${p.name}: ${totalGb.toFixed(2)} GB >= ${s.limitGb} GB`);
-          try {
-            wg.blockClient(p.name);
-            store.setBlocked(p.name, true);
-          } catch (e) {
-            console.error(`[limit] Ошибка блокировки ${p.name}:`, e.message);
-          }
-        }
-      }
-    }
+    store.updatePeers(peers, name => {
+      try { wg.blockClient(name); }
+      catch (e) { console.error(`[block] ${name}:`, e.message); }
+    });
   } catch (e) {
     console.error('[poll]', e.message);
   }
-}, 30000);
+}
+
+// Legacy blocked entries must also be removed from the persistent WG config.
+try {
+  const blocked = Object.entries(store.getAll()).filter(([, value]) => value.blocked).map(([name]) => name);
+  const result = wg.reconcileBlockedClients(blocked);
+  for (const failure of result.errors) console.error(`[block reconciliation] ${failure.name}:`, failure.error);
+} catch (e) {
+  console.error('[block reconciliation]', e.message);
+}
+setInterval(pollPeers, 30000);
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`WireGuard admin listening on :${PORT}`);

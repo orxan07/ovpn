@@ -45,7 +45,7 @@
     #mainScreen { display: none; }
 
     /* Nav */
-    .nav { display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 1px solid #2d3148; padding-bottom: 0; }
+    .nav { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 24px; border-bottom: 1px solid #2d3148; padding-bottom: 0; }
     .nav-btn { padding: 8px 16px; font-size: 14px; cursor: pointer; border: none; background: none; color: #64748b; border-bottom: 2px solid transparent; margin-bottom: -1px; }
     .nav-btn.active { color: #3b82f6; border-bottom-color: #3b82f6; }
 
@@ -146,6 +146,7 @@
     <div class="nav">
       <button class="nav-btn active" onclick="showPage('peers')">Клиенты</button>
       <button class="nav-btn" onclick="showPage('sstp')">SSTP</button>
+      <button class="nav-btn" onclick="showPage('proxy')">Прокси</button>
       <button class="nav-btn" onclick="showPage('system')">Система</button>
       <button class="nav-btn" onclick="showPage('whitelist')">Whitelist</button>
       <button class="nav-btn" onclick="showPage('diagnostics')">Диагностика</button>
@@ -370,19 +371,28 @@
       </div>
     </div>
 
-    <!-- Страница: Система -->
-    <div id="page-system" style="display:none;">
+    <!-- Страница: Прокси -->
+    <div id="page-proxy" style="display:none;">
       <div class="card">
-        <h2>Состояние сервера</h2>
-        <div class="stats-grid" id="statsGrid">
-          <div class="stat-item"><div class="stat-label">Загрузка...</div></div>
+        <h2>Telegram · MTProto</h2>
+        <p class="muted" style="margin-bottom:16px;">Подключение Telegram без VPN через отдельный сервер. Введите выданные сервером реквизиты, сохраните и откройте ссылку на своём устройстве. Изменение этих полей сохраняет реквизиты в панели; настройки контейнера на VPS меняются отдельно.</p>
+        <form id="mtprotoForm" onsubmit="event.preventDefault(); saveMtprotoSettings()" style="display:grid; gap:12px; max-width:600px;">
+          <label style="display:grid; gap:6px;">Сервер<input id="mtprotoServer" type="text" placeholder="156.67.63.163" required autocomplete="off" /></label>
+          <label style="display:grid; gap:6px;">Порт<input id="mtprotoPort" type="number" min="1" max="65535" step="1" required /></label>
+          <label style="display:grid; gap:6px;">Secret<input id="mtprotoSecret" type="password" placeholder="Secret из настроек MTProto-сервера" autocomplete="off" maxlength="544" /></label>
+          <label class="muted"><input id="mtprotoShowSecret" type="checkbox" onchange="document.getElementById('mtprotoSecret').type = this.checked ? 'text' : 'password'" /> Показать secret</label>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button id="mtprotoSaveBtn" class="btn btn-primary" type="submit" disabled>Сохранить</button>
+            <button class="btn btn-ghost" type="button" onclick="loadMtprotoSettings()">Обновить</button>
+          </div>
+        </form>
+        <div id="mtprotoStatus" class="muted" role="status" aria-live="polite" style="margin-top:12px;">Загрузка...</div>
+        <div id="mtprotoError" class="error" role="alert" style="margin-top:8px;"></div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+          <a id="mtprotoLink" class="btn btn-success" hidden target="_blank" rel="noopener noreferrer">Открыть в Telegram</a>
+          <button id="mtprotoCopyBtn" class="btn btn-ghost" disabled onclick="copyMtprotoLink()">Скопировать ссылку</button>
         </div>
-      </div>
-      <div class="card">
-        <h2>Сервисы</h2>
-        <div id="servicesGrid" style="display:flex; flex-direction:column; gap:10px;">
-          <div class="muted">Загрузка...</div>
-        </div>
+        <p class="muted" style="margin-top:12px;">Ссылка содержит secret. Передавайте её только тем, кому хотите дать доступ к прокси.</p>
       </div>
       <div class="card">
         <h2>Outline endpoints</h2>
@@ -396,6 +406,22 @@
           <button class="btn btn-ghost" onclick="loadOutlineSettings()">Обновить</button>
           <span id="outlineError" class="error"></span>
           <span id="outlineOk" style="color:#4ade80; font-size:13px;"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Страница: Система -->
+    <div id="page-system" style="display:none;">
+      <div class="card">
+        <h2>Состояние сервера</h2>
+        <div class="stats-grid" id="statsGrid">
+          <div class="stat-item"><div class="stat-label">Загрузка...</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Сервисы</h2>
+        <div id="servicesGrid" style="display:flex; flex-direction:column; gap:10px;">
+          <div class="muted">Загрузка...</div>
         </div>
       </div>
       <div class="card">
@@ -718,6 +744,9 @@
     let currentPeerData = null;
     let singboxMode = 'mobile';
     let currentPage = 'peers';
+    let mtprotoLink = '';
+    let mtprotoRequest = 0;
+    let mtprotoSaving = false;
 
     if (TOKEN) showMain();
 
@@ -738,6 +767,8 @@
     function logout() {
       localStorage.removeItem('wg_token');
       TOKEN = null;
+      clearMtprotoSettings();
+      clearInterval(sstpTimer);
       clearInterval(refreshTimer);
       clearInterval(systemTimer);
       clearInterval(diagTimer);
@@ -763,7 +794,7 @@
 
     function showPage(page) {
       currentPage = page;
-      const pages = ['peers', 'sstp', 'system', 'whitelist', 'diagnostics'];
+      const pages = ['peers', 'sstp', 'proxy', 'system', 'whitelist', 'diagnostics'];
       pages.forEach(p => {
         document.getElementById(`page-${p}`).style.display = p === page ? 'block' : 'none';
       });
@@ -781,9 +812,11 @@
       } else if (page === 'sstp') {
         loadSstp();
         sstpTimer = setInterval(loadSstp, 10000);
+      } else if (page === 'proxy') {
+        loadMtprotoSettings();
+        loadOutlineSettings();
       } else if (page === 'system') {
         loadSystem();
-        loadOutlineSettings();
         systemTimer = setInterval(loadSystem, 5000);
       } else if (page === 'whitelist') {
         loadRoutingMode();
@@ -858,7 +891,7 @@
             ? '<span class="badge blocked">заблокирован</span>'
             : `<span class="badge ${p.active ? 'active' : 'inactive'}">${p.active ? 'активен' : 'неактивен'}</span>`;
           return `<tr>
-            <td><span class="peer-name-link" onclick="openDetail('${p.name}')">${p.name}</span>${p.note ? `<div class="muted">${p.note}</div>` : ''}</td>
+            <td><span class="peer-name-link" onclick="openDetail('${p.name}')">${p.name}</span>${p.note ? `<div class="muted">${esc(p.note)}</div>` : ''}</td>
             <td style="font-family:monospace">${p.ip || '—'}</td>
             <td>${statusBadge}</td>
             <td class="muted">${formatAgo(p.lastHandshakeAgo)}</td>
@@ -896,6 +929,88 @@
         loadPeers();
       } catch (e) {
         alert(e.message);
+      }
+    }
+
+    // ── MTProto ──
+
+    function clearMtprotoSettings() {
+      mtprotoRequest++;
+      mtprotoLink = '';
+      document.getElementById('mtprotoSecret').value = '';
+      document.getElementById('mtprotoSecret').type = 'password';
+      document.getElementById('mtprotoShowSecret').checked = false;
+      document.getElementById('mtprotoLink').hidden = true;
+      document.getElementById('mtprotoLink').removeAttribute('href');
+      document.getElementById('mtprotoCopyBtn').disabled = true;
+      document.getElementById('mtprotoSaveBtn').disabled = true;
+    }
+
+    function renderMtprotoSettings(settings) {
+      document.getElementById('mtprotoServer').value = settings.server;
+      document.getElementById('mtprotoPort').value = settings.port;
+      document.getElementById('mtprotoSecret').value = settings.secret;
+      mtprotoLink = settings.link || '';
+      const link = document.getElementById('mtprotoLink');
+      link.hidden = !mtprotoLink;
+      if (mtprotoLink) link.href = mtprotoLink;
+      else link.removeAttribute('href');
+      document.getElementById('mtprotoCopyBtn').disabled = !mtprotoLink;
+      document.getElementById('mtprotoStatus').textContent = settings.configured
+        ? 'Реквизиты сохранены. Откройте ссылку и включите прокси в Telegram.'
+        : 'Добавьте secret сервера, чтобы получить ссылку для Telegram.';
+    }
+
+    async function loadMtprotoSettings() {
+      if (mtprotoSaving) return;
+      clearMtprotoSettings();
+      const request = mtprotoRequest;
+      document.getElementById('mtprotoError').textContent = '';
+      document.getElementById('mtprotoStatus').textContent = 'Загрузка...';
+      try {
+        const settings = await api('GET', '/api/mtproto');
+        if (!settings || request !== mtprotoRequest) return;
+        renderMtprotoSettings(settings);
+        document.getElementById('mtprotoSaveBtn').disabled = false;
+      } catch (e) {
+        if (request !== mtprotoRequest) return;
+        document.getElementById('mtprotoStatus').textContent = '';
+        document.getElementById('mtprotoError').textContent = e.message;
+      }
+    }
+
+    async function saveMtprotoSettings() {
+      if (mtprotoSaving) return;
+      mtprotoSaving = true;
+      const request = ++mtprotoRequest;
+      const button = document.getElementById('mtprotoSaveBtn');
+      button.disabled = true;
+      button.textContent = 'Сохраняю...';
+      document.getElementById('mtprotoError').textContent = '';
+      try {
+        const settings = await api('PUT', '/api/mtproto', {
+          server: document.getElementById('mtprotoServer').value.trim(),
+          port: Number(document.getElementById('mtprotoPort').value),
+          secret: document.getElementById('mtprotoSecret').value.trim(),
+        });
+        if (!settings || request !== mtprotoRequest) return;
+        renderMtprotoSettings(settings);
+      } catch (e) {
+        if (request === mtprotoRequest) document.getElementById('mtprotoError').textContent = e.message;
+      } finally {
+        mtprotoSaving = false;
+        button.textContent = 'Сохранить';
+        if (request === mtprotoRequest && TOKEN) button.disabled = false;
+      }
+    }
+
+    async function copyMtprotoLink() {
+      if (!mtprotoLink) return;
+      try {
+        await navigator.clipboard.writeText(mtprotoLink);
+        document.getElementById('mtprotoStatus').textContent = 'Ссылка скопирована.';
+      } catch {
+        document.getElementById('mtprotoError').textContent = 'Не удалось скопировать ссылку. Откройте её кнопкой «Открыть в Telegram».';
       }
     }
 

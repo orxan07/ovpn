@@ -236,7 +236,7 @@ WireGuard конфиги и ключи хранятся в `/etc/wireguard/clien
 | WhatsApp | whatsapp.com, whatsapp.net, fbcdn.net, fbsbx.com, graph.facebook.com, ... | основные диапазоны AS32934 Meta |
 | Instagram / Facebook / Meta | facebook.com, facebook.net, fbcdn.net, fbcdn.com, mfbcdn.net, fbsbx.com, instagram.com, ... | основные диапазоны AS32934 Meta |
 | Discord | discord.com, discordapp.com, ... | — |
-| OpenAI / ChatGPT | openai.com, chatgpt.com, oaistatic.com, Statsig (featuregates.org, oaistatsig.com, …), WorkOS, challenges.cloudflare.com, ... | — |
+| OpenAI / ChatGPT | openai.com, chatgpt.com, chat.com, oaistatic.com, Statsig, WorkOS, LiveKit, humb.apple.com, Azure Web PubSub, Intercom, Stripe, Sentry, Datadog, ... | — |
 | Anthropic / Claude | anthropic.com, claude.ai, ... | — |
 | Cursor | api2.cursor.sh, api3.cursor.sh, repo42.cursor.sh, cursorapi.com, cursor-cdn.com, VS Code/GitHub deps, ... | — |
 | Netflix | netflix.com, nflxvideo.net, fast.com, ... | 12 диапазонов AS2906 (Open Connect) |
