@@ -29,6 +29,13 @@ function installSudoersIfConfigured() {
   run('bash', [installer, serviceUser]);
 }
 
+function installLogRetentionIfConfigured() {
+  const installer = path.join(ROOT_DIR, 'scripts/install-log-retention.sh');
+  if (!fs.existsSync(WG_ADMIN_SERVICE) || !fs.existsSync(installer)) return;
+  console.log('Installing log retention limits...');
+  run('sudo', ['-n', 'bash', installer]);
+}
+
 function syncPresetsIfConfigured() {
   if (!fs.existsSync(SINGBOX_CONF)) return;
 
@@ -39,6 +46,7 @@ function syncPresetsIfConfigured() {
 try {
   installAppCommandIfPresent();
   installSudoersIfConfigured();
+  installLogRetentionIfConfigured();
   syncPresetsIfConfigured();
 } catch (e) {
   console.error(`postinstall failed: ${e.message}`);

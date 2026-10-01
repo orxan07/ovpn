@@ -12,7 +12,7 @@ echo "=== WireGuard Admin Panel: setup ==="
 # 1. Зависимости: Node.js
 echo "[1/6] Устанавливаем Node.js..."
 sudo apt-get update
-sudo apt-get install -y wireguard wireguard-tools qrencode jq iptables nftables nginx certbot python3-certbot-nginx
+sudo apt-get install -y wireguard wireguard-tools qrencode jq iptables nftables logrotate nginx certbot python3-certbot-nginx
 
 if ! command -v node &>/dev/null; then
   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
@@ -128,6 +128,7 @@ sudo systemctl reload nginx
 # 8. Глобальные команды управления
 echo "[+] Устанавливаем глобальные команды..."
 bash "$APP_DIR/scripts/install-app-command.sh"
+sudo bash "$APP_DIR/scripts/install-log-retention.sh"
 
 echo ""
 echo "=== Готово! ==="

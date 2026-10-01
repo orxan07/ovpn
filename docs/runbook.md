@@ -133,3 +133,35 @@ sudo bash /opt/wg-admin/scripts/restore.sh /root/vpn-backup-LATEST.tar.gz
 
 Один tar.gz содержит ВСЁ: WG-ключи, SSTP пользователей и cert,
 sing-box whitelist, nft-правила интеграции, nginx + LE, сторэдж админки.
+
+
+## Ограничение размера логов
+
+Deploy, установка и восстановление применяют `scripts/install-log-retention.sh`:
+
+- systemd journal: до 256 МБ на диске, файлы до 32 МБ, история до 7 дней;
+- syslog и другие логи rsyslog: ротация при размере более 20 МБ, четыре
+  сжатых архива без ожидания следующей ротации для сжатия;
+- SSTP и старый OpenVPN: ротация при размере более 10 МБ, четыре сжатых архива;
+- `wg-admin-logrotate.timer` проверяет правила каждый час с задержкой до 5 минут.
+
+Размер файлов может превысить порог между проверками. Таймер использует общую
+конфигурацию и блокировку logrotate, поэтому не конфликтует с ежедневной
+проверкой Ubuntu. Клиентские данные, ключи и бэкапы он не удаляет.
+Первоначальный конфиг rsyslog сохранён в
+`/var/lib/wg-admin/log-retention/rsyslog.original`.
+
+Проверить состояние:
+
+```bash
+sudo journalctl --disk-usage
+systemctl list-timers wg-admin-logrotate.timer
+sudo logrotate --debug /etc/logrotate.conf
+```
+
+Применить настройки вручную:
+
+```bash
+sudo bash /opt/wg-admin/scripts/install-log-retention.sh
+sudo systemctl start wg-admin-logrotate.service
+```

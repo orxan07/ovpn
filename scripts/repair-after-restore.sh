@@ -21,6 +21,10 @@ if [ -f "$APP_DIR/scripts/install-sudoers.sh" ]; then
   bash "$APP_DIR/scripts/install-sudoers.sh" "$SERVICE_USER"
 fi
 
+if [ -f "$APP_DIR/scripts/install-log-retention.sh" ]; then
+  bash "$APP_DIR/scripts/install-log-retention.sh"
+fi
+
 if [ -f "$WG_CONF" ]; then
   WAN_IF="$(ip route get 1.1.1.1 | awk '/dev/ {for(i=1;i<=NF;i++) if($i=="dev") print $(i+1); exit}')"
   if [ -n "$WAN_IF" ]; then
