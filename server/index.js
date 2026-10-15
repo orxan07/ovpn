@@ -12,6 +12,13 @@ const diag = require('./diagnostics');
 const sstp = require('./sstp');
 const outline = require('./outline');
 const mtproto = require('./mtproto');
+const { createMonitor } = require('./sstp-monitor');
+const { getActivity } = require('./sstp-activity');
+let sstpMonitor = null;
+try {
+  sstpMonitor = createMonitor({ getSessions: sstp.getSessions, getUsers: sstp.getUsers, blockUser: sstp.setBlocked, disconnectUser: sstp.disconnectUser });
+  sstpMonitor.start();
+} catch (error) { console.error('[sstp monitor]', error.message); }
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -443,6 +450,66 @@ app.delete('/api/whitelist/:domain', (req, res) => {
 
 // ── SSTP (accel-ppp) ──────────────────────────────────
 
+function requireSstpMonitor() {
+  if (!sstpMonitor) throw new Error('Учёт SSTP недоступен. Проверьте файл данных и журнал панели');
+  return sstpMonitor;
+}
+
+function getSstpClient(name) {
+  const account = sstp.getUsers().find(user => user.name === name);
+  if (!account) throw new Error('Клиент не найден');
+  return requireSstpMonitor().getClient(account);
+}
+
+app.get('/api/sstp/clients', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const monitor = requireSstpMonitor();
+    const clients = sstp.getUsers().map(user => monitor.getClient(user));
+    res.json({ clients, monitor: monitor.status() });
+  } catch (error) { res.status(503).json({ error: error.message }); }
+});
+
+app.get('/api/sstp/clients/:name/activity', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try { res.json(await getActivity(getSstpClient(req.params.name).sessions)); }
+  catch (error) { res.status(400).json({ error: error.message }); }
+});
+
+app.patch('/api/sstp/clients/:name', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    getSstpClient(req.params.name);
+    const keys = Object.keys(req.body);
+    if (!keys.length || keys.some(key => !['note', 'limitGb', 'expiresAt'].includes(key))) throw new Error('Допустимы note, limitGb и expiresAt');
+    requireSstpMonitor().configure(req.params.name, req.body);
+    res.json(getSstpClient(req.params.name));
+  } catch (error) { res.status(400).json({ error: error.message }); }
+});
+
+app.post('/api/sstp/clients/:name/access', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const client = getSstpClient(req.params.name);
+    if (typeof req.body.blocked !== 'boolean') throw new Error('blocked должен быть boolean');
+    if (!req.body.blocked && (client.quotaExceeded || client.expired)) throw new Error('Сначала увеличьте квоту, сбросьте учёт или продлите срок доступа');
+    res.json(sstp.setBlocked(req.params.name, req.body.blocked));
+  } catch (error) { res.status(400).json({ error: error.message }); }
+});
+
+app.post('/api/sstp/clients/:name/disconnect', (req, res) => {
+  try { getSstpClient(req.params.name); res.json(sstp.disconnectUser(req.params.name)); }
+  catch (error) { res.status(400).json({ error: error.message }); }
+});
+
+app.post('/api/sstp/clients/:name/reset-usage', (req, res) => {
+  try {
+    getSstpClient(req.params.name);
+    requireSstpMonitor().resetUsage(req.params.name);
+    res.json({ ok: true });
+  } catch (error) { res.status(400).json({ error: error.message }); }
+});
+
 app.get('/api/sstp/status', (req, res) => {
   try { res.json(sstp.getStatus()); }
   catch (e) { res.status(500).json({ error: e.message }); }
@@ -455,6 +522,7 @@ app.get('/api/sstp/users', (req, res) => {
 
 // Раскрытие пароля по запросу (для копирования клиенту)
 app.get('/api/sstp/users/:name/credentials', (req, res) => {
+  res.set('Cache-Control', 'no-store');
   try {
     const u = sstp.getUserWithPassword(req.params.name);
     const status = sstp.getStatus();
@@ -470,6 +538,11 @@ app.get('/api/sstp/users/:name/credentials', (req, res) => {
 app.post('/api/sstp/users', (req, res) => {
   try {
     const { name, password } = req.body;
+    sstp.validateName(name);
+    if (password !== undefined) sstp.validatePassword(password);
+    if (sstp.getUsers().some(user => user.name === name)) throw new Error('Пользователь уже существует');
+    // Never attach an old account's quota/history to a reused login.
+    requireSstpMonitor().remove(name);
     res.json(sstp.addUser(name, password));
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
@@ -483,7 +556,11 @@ app.patch('/api/sstp/users/:name', (req, res) => {
 });
 
 app.delete('/api/sstp/users/:name', (req, res) => {
-  try { res.json(sstp.removeUser(req.params.name)); }
+  try {
+    const result = sstp.removeUser(req.params.name);
+    if (sstpMonitor) sstpMonitor.remove(req.params.name);
+    res.json(result);
+  }
   catch (e) { res.status(400).json({ error: e.message }); }
 });
 

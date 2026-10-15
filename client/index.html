@@ -122,6 +122,43 @@
     .dot-green { background: #4ade80; }
     .dot-red { background: #f87171; }
     .dot-gray { background: #64748b; }
+
+    /* SSTP: clients first, infrastructure in a separate view. */
+    [hidden] { display: none !important; }
+    .sstp-heading { display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:20px; }
+    .sstp-actions { display:flex;gap:8px;align-items:center;flex-wrap:wrap; }
+    .sstp-summary { margin-bottom:20px;grid-template-columns:repeat(4,minmax(0,1fr)); }
+    .sstp-toolbar { display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px; }
+    .sstp-toolbar input { flex:1;min-width:200px; }
+    #page-sstp input,#page-sstp select,#page-sstp textarea { background:#0f1117;border:1px solid #3b4258;border-radius:8px;color:#e2e8f0;padding:10px 12px;font:inherit;min-width:0; }
+    #page-sstp .muted { color:#94a3b8;line-height:1.5; }
+    #page-sstp .btn { min-height:36px; }
+    #page-sstp button:focus-visible,#page-sstp input:focus-visible,#page-sstp select:focus-visible,#page-sstp textarea:focus-visible { outline:2px solid #60a5fa;outline-offset:3px; }
+    .sstp-row { display:grid;grid-template-columns:minmax(160px,1.5fr) minmax(100px,.85fr) 1fr 1fr 1fr 90px;gap:16px;align-items:center;padding:18px 0;border-bottom:1px solid #2d3148;font-size:14px; }
+    .sstp-row:last-child { border-bottom:0; }
+    .sstp-column-head { padding:12px 0;color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:.04em; }
+    .sstp-name { background:none;border:0;color:#f1f5f9;font:inherit;font-weight:600;text-align:left;cursor:pointer;word-break:break-word; }
+    .sstp-name:hover { color:#60a5fa; }
+    .sstp-sub { display:block;color:#94a3b8;font-size:12px;line-height:1.6;margin-top:4px;overflow-wrap:anywhere; }
+    .sstp-value { font-variant-numeric:tabular-nums; }
+    .sstp-mobile-label { display:none; }
+    .sstp-notice { padding:12px 16px;background:#392810;border:1px solid #7c591d;border-radius:8px;color:#fde68a;font-size:13px;margin-bottom:16px; }
+    .sstp-empty { text-align:center;padding:32px 12px;color:#94a3b8;line-height:1.6; }
+    .sstp-accounting-note { margin-top:20px;border-top:1px solid #2d3148;padding-top:14px; }
+    .sstp-add-form { padding:16px;background:#0f1117;border-radius:8px;display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin-bottom:16px; }
+    .sstp-add-form label,.sstp-settings-form label { display:grid;gap:8px;font-size:13px; }
+    .sstp-settings-form { display:grid;gap:20px; }
+    .sstp-settings-grid { display:grid;grid-template-columns:1fr 1fr;gap:20px; }
+    .sstp-settings-section { border-top:1px solid #2d3148;padding-top:20px;display:grid;gap:12px; }
+    .sstp-settings-section .btn { justify-self:start; }
+    .sstp-session { padding:14px 16px;background:#0f1117;border:1px solid #2d3148;border-radius:8px;margin-bottom:10px; }
+    .sstp-session-head { display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap; }
+    .sstp-table-wrap { overflow-x:auto; }
+    .sstp-activity-row { display:grid;grid-template-columns:minmax(150px,1fr) 80px 90px 100px;gap:16px;padding:14px 0;border-bottom:1px solid #2d3148;font-size:13px;align-items:center; }
+    @media(max-width:960px) { .sstp-row { grid-template-columns:minmax(160px,1.5fr) 100px 1fr 1fr; } .sstp-row> :nth-child(4) { display:none; } .sstp-row> :last-child { display:none; } .sstp-row> :nth-child(5) { grid-column:4;grid-row:auto; } .sstp-column-head>:last-child { display:none; } }
+    #page-sstp .stat-label, #page-sstp .stat-sub, #page-sstp .info-label { color:#94a3b8; }
+    #page-sstp .sstp-sub { color:#aebbd0; }
+    @media(max-width:640px) { #sstpClientsPanel { display:flex;flex-direction:column; } #sstpClientList, #sstpClientDetail { order:0; } #sstpClientStats { order:1; } #sstpClientList>.sstp-heading>div { flex:1;min-width:0; } #sstpClientList>.sstp-heading>div>p { display:none; } #page-sstp .btn { min-height:42px; } #sstpDetailStats { grid-template-columns:repeat(2,minmax(0,1fr)); } body{padding:16px} .sstp-summary{grid-template-columns:1fr 1fr;gap:10px} .sstp-summary .stat-value{font-size:19px} .sstp-summary .stat-item{padding:14px} .sstp-row{grid-template-columns:1fr 1fr;gap:14px;padding:18px 0} .sstp-column-head{display:none} .sstp-row>:nth-child(4){display:block} .sstp-row>:last-child{display:block;grid-column:2;justify-self:end} .sstp-row>:nth-child(5){grid-column:1;grid-row:auto} .sstp-row>:nth-child(2){text-align:right} .sstp-mobile-label{display:block;color:#94a3b8;font-size:11px;margin-bottom:5px} .sstp-toolbar input{flex-basis:100%;width:100%} #page-sstp .sstp-toolbar select{flex:1 1 calc(50% - 5px);width:calc(50% - 5px);max-width:100%;font-size:13px} .sstp-settings-grid{grid-template-columns:1fr} #sstpDetailInfo{grid-template-columns:1fr} .sstp-activity-row{grid-template-columns:1fr 60px;gap:8px} .sstp-activity-row>:nth-child(3){grid-column:1} .sstp-activity-row>:nth-child(4){grid-column:2} #sstpServerPanel .card>div>div{min-width:0!important} #sstpServerPanel pre{white-space:pre-wrap;word-break:break-word} .sstp-heading{align-items:flex-start} }
   </style>
 </head>
 <body>
@@ -183,6 +220,53 @@
 
     <!-- Страница: SSTP -->
     <div id="page-sstp" style="display:none;">
+      <div class="sstp-heading">
+        <div><h2 style="font-size:24px;margin-bottom:6px">SSTP-клиенты</h2><p class="muted" id="sstpOverviewLine">Подключения и расход трафика</p></div>
+        <button class="btn btn-ghost" onclick="loadSstp()">Обновить данные</button>
+      </div>
+      <div class="tabs" aria-label="Разделы SSTP">
+        <button class="tab active" id="sstpClientsTab" onclick="showSstpView('clients')">Клиенты</button>
+        <button class="tab" id="sstpServerTab" onclick="showSstpView('server')">Сервер и диагностика</button>
+      </div>
+      <div id="sstpNotice" class="sstp-notice" role="status" hidden></div>
+      <section id="sstpClientsPanel">
+        <div class="stats-grid sstp-summary" id="sstpClientStats"></div>
+        <div id="sstpClientList" class="card">
+          <div class="sstp-heading"><div><h2 style="margin-bottom:5px">Все клиенты <span id="sstpClientCount" class="muted"></span></h2><p class="muted">Статус, скорость и расход по каждой учётной записи</p></div><button class="btn btn-primary" onclick="toggleSstpAdd()">Добавить клиента</button></div>
+          <div class="sstp-toolbar">
+            <input type="search" id="sstpSearch" aria-label="Поиск SSTP-клиентов" placeholder="Поиск по имени, заметке или IP" oninput="renderSstpClients()">
+            <select id="sstpFilter" aria-label="Статус SSTP-клиентов" onchange="renderSstpClients()"><option value="all">Все статусы</option><option value="online">Онлайн</option><option value="offline">Офлайн</option><option value="blocked">Заблокированы</option></select>
+            <select id="sstpSort" aria-label="Сортировка SSTP-клиентов" onchange="renderSstpClients()"><option value="online">Онлайн сверху</option><option value="traffic">По трафику</option><option value="name">По имени</option></select>
+            <button class="btn btn-ghost" onclick="exportSstpClients()">Экспорт CSV</button>
+          </div>
+          <form id="sstpAddForm" hidden onsubmit="event.preventDefault();addSstpUser()" class="sstp-add-form">
+            <label>Логин<input type="text" id="newSstpUser" placeholder="Например home-router" autocomplete="off" maxlength="32" required></label>
+            <label>Пароль<input type="password" id="newSstpPass" placeholder="Пусто — сгенерировать" autocomplete="new-password"></label>
+            <button class="btn btn-primary" type="submit">Создать клиента</button><span id="sstpAddError" class="error" role="status"></span>
+          </form>
+          <div class="sstp-row sstp-column-head" aria-hidden="true"><span>Клиент</span><span>Статус</span><span>Скорость ↓ / ↑</span><span>Трафик за сегодня</span><span>Всего учтено</span><span></span></div>
+          <div id="sstpClientRows"><p class="sstp-empty">Загрузка клиентов…</p></div>
+          <p class="muted sstp-accounting-note" id="sstpAccountingNote"></p>
+        </div>
+        <section id="sstpClientDetail" hidden>
+          <button class="back-btn" onclick="closeSstpClient()">← Все SSTP-клиенты</button>
+          <div class="card">
+            <div class="sstp-heading"><div><h2 id="sstpDetailName" style="font-size:24px;margin-bottom:7px"></h2><div id="sstpDetailState"></div></div><div class="sstp-actions"><button class="btn btn-ghost" onclick="showSstpCred(sstpSelected)">Реквизиты</button><button class="btn btn-ghost" onclick="sstpDisconnectClient()" id="sstpDisconnectBtn">Отключить сессии</button><button class="btn btn-warning" onclick="sstpToggleAccess()" id="sstpAccessBtn">Заблокировать</button></div></div>
+            <div class="tabs"><button class="tab active" id="sstpOverviewTab" onclick="showSstpDetailTab('overview')">Обзор</button><button class="tab" id="sstpActivityTab" onclick="showSstpDetailTab('activity')">Активность</button><button class="tab" id="sstpSettingsTab" onclick="showSstpDetailTab('settings')">Настройки</button></div>
+            <div id="sstpDetailOverview"><div class="stats-grid" id="sstpDetailStats"></div><div id="sstpDetailInfo" class="info-grid" style="margin-top:16px"></div><h2 style="margin:24px 0 12px">Текущие подключения</h2><div id="sstpDetailSessions"></div><h2 style="margin:24px 0 12px">История сессий</h2><div id="sstpDetailHistory"></div><h2 style="margin:24px 0 12px">Трафик по дням</h2><div id="sstpDetailDays"></div></div>
+            <div id="sstpDetailActivity" hidden><div class="sstp-heading"><p class="muted">Соединения клиента: домены/IP, протокол и маршрут</p><button class="btn btn-ghost" onclick="loadSstpActivity()">Обновить активность</button></div><p class="muted" id="sstpActivityNote"></p><div id="sstpActivityRows" style="margin-top:16px"></div></div>
+            <form id="sstpDetailSettings" hidden onsubmit="event.preventDefault();saveSstpClient()" class="sstp-settings-form">
+              <label>Заметка<textarea id="sstpClientNote" maxlength="2000" rows="3" placeholder="Кто использует подключение и для чего"></textarea></label>
+              <div class="sstp-settings-grid"><label>Квота трафика, GiB<input type="number" id="sstpClientLimit" min="0.001" max="1000000" step="any" placeholder="Без ограничений"><small class="muted">Пусто — без квоты. Учитываются загрузка и отдача с начала учёта или последнего сброса.</small></label><label>Доступ до<input type="datetime-local" id="sstpClientExpiry"><small class="muted">Часовой пояс этого устройства. Пусто — без срока.</small></label></div>
+              <p class="muted">По достижении квоты или срока клиент блокируется; проверка каждые 5 секунд. Для возобновления доступа снимите ограничение и разблокируйте клиента.</p>
+              <div class="sstp-actions"><button class="btn btn-primary" type="submit" id="sstpSaveBtn">Сохранить настройки</button><span id="sstpSettingsMessage" role="status"></span></div>
+              <div class="sstp-settings-section"><h2>Подключение</h2><p class="muted" id="sstpIpAssignment"></p><p class="muted">Фиксированный IP, ограничение скорости и индивидуальный маршрут требуют отдельной настройки accel-ppp и сети; панель пока их не изменяет.</p><button type="button" class="btn btn-ghost" onclick="changeSstpPassword(sstpSelected)">Сменить пароль</button></div>
+              <div class="sstp-settings-section"><h2>Управление данными</h2><p class="muted">Сброс обнуляет расход для квоты. История сессий сохраняется. Удаление клиента удаляет его реквизиты и учёт.</p><div class="sstp-actions"><button type="button" class="btn btn-warning" onclick="resetSstpUsage()">Сбросить учёт трафика</button><button type="button" class="btn btn-danger" onclick="removeSstpUser(sstpSelected)">Удалить клиента</button></div></div>
+            </form>
+          </div>
+        </section>
+      </section>
+      <section id="sstpServerPanel" hidden>
       <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap;">
           <div>
@@ -312,52 +396,7 @@
         <pre id="sstpIntegrationOut" style="max-height:400px; overflow:auto;">нажмите «Полная диагностика»</pre>
       </div>
 
-      <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-          <h2 style="margin-bottom:0;">Активные сессии</h2>
-          <span id="sstpSessionsCount" class="muted"></span>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Интерфейс</th>
-              <th>Пользователь</th>
-              <th>IP в туннеле</th>
-              <th>Откуда</th>
-              <th>Аптайм</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="sstpSessionsBody">
-            <tr><td colspan="6" style="color:#64748b; text-align:center; padding:24px;">Загрузка...</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="card">
-        <h2>Пользователи</h2>
-        <p class="muted" style="margin-bottom:12px;">Хранятся в <code>/etc/accel-ppp/chap-secrets</code>. После добавления/смены пароля скопируйте реквизиты — пароль показывается по запросу.</p>
-        <div class="form-row" style="margin-bottom:14px;">
-          <input type="text" id="newSstpUser" placeholder="Имя (например iphone)" onkeydown="if(event.key==='Enter') addSstpUser()" />
-          <input type="text" id="newSstpPass" placeholder="Пароль (пусто = сгенерировать)" />
-          <button class="btn btn-primary" onclick="addSstpUser()">Добавить</button>
-          <span id="sstpAddError" class="error"></span>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Имя</th>
-              <th>Пароль</th>
-              <th>IP-привязка</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="sstpUsersBody">
-            <tr><td colspan="4" style="color:#64748b; text-align:center; padding:24px;">Загрузка...</td></tr>
-          </tbody>
-        </table>
-      </div>
-
+      </section>
       <!-- Modal: показать реквизиты пользователя -->
       <div id="sstpCredModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; z-index:100;">
         <div style="background:#1a1d27; border:1px solid #2d3148; border-radius:12px; padding:24px; max-width:480px; width:90%;">
@@ -768,6 +807,8 @@
       localStorage.removeItem('wg_token');
       TOKEN = null;
       clearMtprotoSettings();
+      closeSstpCred();
+      if (typeof clearSstpWorkspace === 'function') clearSstpWorkspace();
       clearInterval(sstpTimer);
       clearInterval(refreshTimer);
       clearInterval(systemTimer);
@@ -811,7 +852,7 @@
         refreshTimer = setInterval(loadPeers, 15000);
       } else if (page === 'sstp') {
         loadSstp();
-        sstpTimer = setInterval(loadSstp, 10000);
+        sstpTimer = setInterval(loadSstp, 5000);
       } else if (page === 'proxy') {
         loadMtprotoSettings();
         loadOutlineSettings();
@@ -2023,30 +2064,46 @@
       return Math.floor(sec / 86400) + 'д ' + Math.floor((sec % 86400) / 3600) + 'ч';
     }
 
+    let sstpClients = [];
+    let sstpMonitorInfo = null;
+    let sstpSelected = null;
+    let sstpDetailTab = 'overview';
+    let sstpView = 'clients';
+    let sstpLoading = false;
+    let sstpSettingsFor = null;
+    let sstpActivityRequest = 0;
+
     async function loadSstp() {
+      if (sstpLoading || !TOKEN) return;
+      const requestToken = TOKEN;
+      sstpLoading = true;
       try {
-        const [status, users, sessions] = await Promise.all([
-          api('GET', '/api/sstp/status'),
-          api('GET', '/api/sstp/users'),
-          api('GET', '/api/sstp/sessions'),
-        ]);
-        if (!status) return;
+        const [status, result] = await Promise.all([api('GET', '/api/sstp/status'), api('GET', '/api/sstp/clients')]);
+        if (!status || !result || requestToken !== TOKEN) return;
         renderSstpStatus(status);
-        renderSstpUsers(users || []);
-        renderSstpSessions(sessions || []);
+        sstpClients = result.clients || [];
+        sstpMonitorInfo = result.monitor;
+        const notice = document.getElementById('sstpNotice');
+        notice.hidden = !result.monitor?.error;
+        notice.textContent = result.monitor?.error || '';
+        renderSstpClients();
+        renderSstpClientDetail();
+        document.getElementById('sstpOverviewLine').textContent = `${status.ok ? 'Сервер работает' : 'Сервер недоступен'} · ${status.publicHost || status.externalIp || '—'} · обновление каждые 5 с`;
       } catch (e) {
-        document.getElementById('sstpStatusLine').innerHTML = `<span class="error">${e.message}</span>`;
+        const notice = document.getElementById('sstpNotice');
+        notice.hidden = false;
+        notice.textContent = `Не удалось обновить данные: ${e.message}. Показан последний успешный снимок.`;
+      } finally { sstpLoading = false; }
+      if (sstpView === 'server') {
+        loadSstpPortState(); loadSstpFirewallState(); loadSstpSingboxState();
       }
-      loadSstpPortState();
-      loadSstpFirewallState();
-      loadSstpSingboxState();
     }
 
     function renderSstpStatus(s) {
       const dot = s.ok ? '<div class="dot dot-green"></div>' : '<div class="dot dot-red"></div>';
       const stateColor = s.ok ? '#4ade80' : '#f87171';
       document.getElementById('sstpStatusLine').innerHTML =
-        `<span style="display:inline-flex; align-items:center; gap:8px;">${dot}<span style="color:${stateColor}">${s.status}</span></span>`;
+        `<span style="display:inline-flex; align-items:center; gap:8px;">${dot}<span style="color:${stateColor}">${esc(s.status)}</span></span>`;
 
       const stats = [
         { label: 'Сервер', value: s.publicHost || s.externalIp || '—' },
@@ -2056,52 +2113,12 @@
         { label: 'Пользователей', value: s.usersCount },
       ];
       document.getElementById('sstpStatsGrid').innerHTML = stats.map(st =>
-        `<div class="stat-item"><div class="stat-label">${st.label}</div><div class="stat-value" style="font-size:18px;">${st.value}</div></div>`
+        `<div class="stat-item"><div class="stat-label">${st.label}</div><div class="stat-value" style="font-size:18px;">${esc(String(st.value ?? '—'))}</div></div>`
       ).join('');
     }
 
-    function renderSstpUsers(users) {
-      const tbody = document.getElementById('sstpUsersBody');
-      if (!users.length) {
-        tbody.innerHTML = '<tr><td colspan="4" style="color:#64748b; text-align:center; padding:24px;">Нет пользователей</td></tr>';
-        return;
-      }
-      tbody.innerHTML = users.map(u => `
-        <tr>
-          <td style="font-weight:500;">${u.name}</td>
-          <td class="muted">•••••••• <span style="font-size:11px;">(${u.passwordLength} симв.)</span></td>
-          <td style="font-family:monospace; color:#64748b;">${u.ip || '*'}</td>
-          <td style="text-align:right;">
-            <button class="btn btn-sm btn-ghost" onclick="showSstpCred('${u.name}')">Реквизиты</button>
-            <button class="btn btn-sm btn-ghost" onclick="changeSstpPassword('${u.name}')">Сменить пароль</button>
-            <button class="btn btn-sm btn-danger" onclick="removeSstpUser('${u.name}')">Удалить</button>
-          </td>
-        </tr>
-      `).join('');
-    }
-
-    function renderSstpSessions(sessions) {
-      document.getElementById('sstpSessionsCount').textContent = sessions.length ? `${sessions.length} активных` : '';
-      const tbody = document.getElementById('sstpSessionsBody');
-      if (!sessions.length) {
-        tbody.innerHTML = '<tr><td colspan="6" style="color:#64748b; text-align:center; padding:24px;">Нет активных сессий</td></tr>';
-        return;
-      }
-      tbody.innerHTML = sessions.map(s => `
-        <tr>
-          <td style="font-family:monospace;">${s.ifname}</td>
-          <td style="font-weight:500;">${s.username}</td>
-          <td style="font-family:monospace;">${s.ip || '—'}</td>
-          <td style="font-family:monospace; color:#64748b;">${s.calledSid || '—'}</td>
-          <td>${s.uptime || '—'}</td>
-          <td style="text-align:right;">
-            <button class="btn btn-sm btn-danger" onclick="disconnectSstpSession('${s.ifname}')">Отключить</button>
-          </td>
-        </tr>
-      `).join('');
-    }
-
     async function addSstpUser() {
+      const requestToken = TOKEN;
       const name = document.getElementById('newSstpUser').value.trim();
       const password = document.getElementById('newSstpPass').value.trim();
       const errEl = document.getElementById('sstpAddError');
@@ -2109,10 +2126,12 @@
       if (!name) { errEl.textContent = 'Имя обязательно'; return; }
       try {
         const res = await api('POST', '/api/sstp/users', { name, password: password || undefined });
+        if (!res || requestToken !== TOKEN) return;
         document.getElementById('newSstpUser').value = '';
         document.getElementById('newSstpPass').value = '';
         await loadSstp();
-        showSstpCredFromObject({ name: res.name, password: res.password });
+        document.getElementById('sstpAddForm').hidden = true;
+        showSstpCredFromObject({ name: res.name, password: res.password }, requestToken);
       } catch (e) {
         errEl.textContent = e.message;
       }
@@ -2122,34 +2141,39 @@
       if (!confirm(`Удалить SSTP-пользователя ${name}? Активная сессия будет отключена.`)) return;
       try {
         await api('DELETE', `/api/sstp/users/${encodeURIComponent(name)}`);
-        loadSstp();
+        closeSstpClient();
+        await loadSstp();
       } catch (e) {
         alert(e.message);
       }
     }
 
     async function changeSstpPassword(name) {
+      const requestToken = TOKEN;
       const password = prompt(`Новый пароль для ${name} (8–64 символа):`);
       if (!password) return;
       try {
         await api('PATCH', `/api/sstp/users/${encodeURIComponent(name)}`, { password });
         await loadSstp();
-        showSstpCredFromObject({ name, password });
+        showSstpCredFromObject({ name, password }, requestToken);
       } catch (e) {
         alert(e.message);
       }
     }
 
     async function showSstpCred(name) {
+      const requestToken = TOKEN;
       try {
         const cred = await api('GET', `/api/sstp/users/${encodeURIComponent(name)}/credentials`);
-        showSstpCredFromObject(cred);
+        if (requestToken !== TOKEN) return;
+        await showSstpCredFromObject(cred, requestToken);
       } catch (e) {
         alert(e.message);
       }
     }
 
-    async function showSstpCredFromObject(cred) {
+    async function showSstpCredFromObject(cred, requestToken = TOKEN) {
+      if (!cred || !requestToken || requestToken !== TOKEN) return;
       // Если в объекте нет server/port — дозапросим status
       let server = cred.server, port = cred.port;
       if (!server || !port) {
@@ -2159,6 +2183,7 @@
           port = port || s.port;
         } catch {}
       }
+      if (requestToken !== TOKEN) return;
       const rows = [
         ['Сервер', `${server || '—'}:${port || '—'}`],
         ['Логин', cred.name],
@@ -2172,7 +2197,7 @@
       document.getElementById('sstpCredBody').innerHTML = rows.map(([k, v]) =>
         `<div style="display:grid; grid-template-columns: 140px 1fr; gap:8px; align-items:center;">
           <div class="muted">${k}</div>
-          <div style="font-family:monospace; font-size:13px; word-break:break-all;">${v}</div>
+          <div style="font-family:monospace; font-size:13px; word-break:break-all;">${esc(String(v ?? '—'))}</div>
         </div>`
       ).join('');
       const modal = document.getElementById('sstpCredModal');
@@ -2181,6 +2206,8 @@
 
     function closeSstpCred() {
       document.getElementById('sstpCredModal').style.display = 'none';
+      document.getElementById('sstpCredBody').textContent = '';
+      sstpCredText = '';
     }
 
     function copySstpCred() {
@@ -2579,5 +2606,6 @@
       }
     }
   </script>
+  <script src="/sstp.js"></script>
 </body>
 </html>

@@ -10,6 +10,7 @@
   - **SSTP** (TCP/14942, `accel-ppp`) — для роутеров за DPI-операторами (например Keenetic Hopper за МТС). См. [`infra/sstp/`](infra/sstp/) и [`docs/dpi-bypass.md`](docs/dpi-bypass.md)
 - **Обход блокировок**: sing-box + Outline/Shadowsocks
 - **Telegram без VPN**: MTProto-прокси на отдельной Outline-VPS (`156.67.63.163:443`). См. [`docs/mtproto.md`](docs/mtproto.md)
+- **Управление SSTP-клиентами**: трафик, сессии, активность, блокировки, квоты и срок доступа — [`docs/sstp-clients.md`](docs/sstp-clients.md).
 - **Панель**: Node.js + Express + vanilla JS SPA
 - **Домен**: `https://vpn.rehimli.info` (nginx + Let's Encrypt)
 

@@ -7,10 +7,14 @@
 //   /bin/systemctl restart|is-active|show accel-ppp
 // См. infra/sstp/sudoers.example
 
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
+const authRecords = require('./sstp-auth');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+// Distribution packages install the CLI in either /usr/sbin or /usr/bin.
+const ACCEL_CMD = ['/usr/sbin/accel-cmd', '/usr/bin/accel-cmd', '/usr/local/sbin/accel-cmd', '/usr/local/bin/accel-cmd']
+  .find(file => fs.existsSync(file)) || '/usr/sbin/accel-cmd';
 
 const CHAP_SECRETS = '/etc/accel-ppp/chap-secrets';
 const CONF = '/etc/accel-ppp.conf';
@@ -46,42 +50,26 @@ function readSecrets() {
 }
 
 function writeSecrets(content) {
-  const tmp = `/tmp/sstp-secrets-${Date.now()}`;
-  fs.writeFileSync(tmp, content);
+  const dir = fs.mkdtempSync('/tmp/sstp-secrets-');
+  const tmp = path.join(dir, 'chap-secrets');
   try {
-    run(`sudo install -m 600 ${tmp} ${CHAP_SECRETS}`);
+    fs.writeFileSync(tmp, content, { mode: 0o600 });
+    execFileSync('sudo', ['install', '-m', '600', tmp, CHAP_SECRETS], { timeout: 5000, stdio: 'pipe' });
+  } catch {
+    throw new Error('Не удалось сохранить пользователей SSTP');
   } finally {
     try { fs.unlinkSync(tmp); } catch {}
+    try { fs.rmdirSync(dir); } catch {}
   }
   // accel-ppp перечитывает chap-secrets при следующей попытке логина,
   // но мягко перезагрузим runtime-state
-  safeRun('sudo /usr/sbin/accel-cmd reload');
+  safeRun(`sudo ${ACCEL_CMD} reload`);
 }
 
 // ── Users (chap-secrets) ─────────────────────────────
 
 function parseSecrets(raw) {
-  return raw.split('\n')
-    .map(l => l.trim())
-    .filter(l => l && !l.startsWith('#'))
-    .map(l => {
-      // формат: user  server  password  ip
-      const parts = l.split(/\s+/);
-      return {
-        name: parts[0],
-        server: parts[1] || '*',
-        password: parts[2] || '',
-        ip: parts[3] || '*',
-      };
-    });
-}
-
-function serializeSecrets(users) {
-  const header = '# user\tserver\tpassword\tip\n';
-  const body = users
-    .map(u => `${u.name}\t${u.server || '*'}\t${u.password}\t${u.ip || '*'}`)
-    .join('\n');
-  return header + body + '\n';
+  return authRecords.records(raw);
 }
 
 function getUsers() {
@@ -89,12 +77,13 @@ function getUsers() {
     name: u.name,
     ip: u.ip,
     passwordLength: u.password.length,
+    blocked: u.blocked,
   }));
 }
 
 function getUserWithPassword(name) {
-  const u = parseSecrets(readSecrets()).find(x => x.name === name);
-  if (!u) throw new Error(`Пользователь ${name} не найден`);
+  validateName(name);
+  const u = authRecords.find(readSecrets(), name);
   return u;
 }
 
@@ -103,54 +92,59 @@ function genPassword() {
 }
 
 function validateName(name) {
-  if (!name || !/^[a-zA-Z0-9_.-]{1,32}$/.test(name)) {
+  if (typeof name !== 'string' || !/^[a-zA-Z0-9_.-]{1,32}$/.test(name)) {
     throw new Error('Имя: только латиница, цифры, _ . -, до 32 символов');
   }
 }
 
 function validatePassword(password) {
-  if (!password || password.length < 8 || password.length > 64) {
+  if (typeof password !== 'string' || password.length < 8 || password.length > 64) {
     throw new Error('Пароль: 8–64 символа');
   }
-  if (/\s/.test(password)) throw new Error('Пароль не должен содержать пробелов');
+  if (/[\s\x00-\x1f\x7f]/.test(password)) throw new Error('Пароль не должен содержать пробелов и управляющих символов');
 }
 
 function addUser(name, password) {
   validateName(name);
-  const pwd = password || genPassword();
+  const pwd = password === undefined ? genPassword() : password;
   validatePassword(pwd);
 
-  const users = parseSecrets(readSecrets());
-  if (users.some(u => u.name === name)) {
-    throw new Error(`Пользователь ${name} уже существует`);
-  }
-  users.push({ name, server: '*', password: pwd, ip: '*' });
-  writeSecrets(serializeSecrets(users));
+  writeSecrets(authRecords.append(readSecrets(), name, pwd));
   return { name, password: pwd };
 }
 
 function removeUser(name) {
   validateName(name);
-  const users = parseSecrets(readSecrets());
-  const filtered = users.filter(u => u.name !== name);
-  if (filtered.length === users.length) {
-    throw new Error(`Пользователь ${name} не найден`);
-  }
-  writeSecrets(serializeSecrets(filtered));
-  // мягко прервать активную сессию (если есть)
-  safeRun(`sudo /usr/sbin/accel-cmd "terminate username ${name} soft"`);
+  const content = authRecords.change(readSecrets(), name, { remove: true });
+  disconnectUser(name);
+  writeSecrets(content);
   return { ok: true };
 }
 
 function setPassword(name, password) {
   validateName(name);
   validatePassword(password);
-  const users = parseSecrets(readSecrets());
-  const u = users.find(x => x.name === name);
-  if (!u) throw new Error(`Пользователь ${name} не найден`);
-  u.password = password;
-  writeSecrets(serializeSecrets(users));
+  writeSecrets(authRecords.change(readSecrets(), name, { password }));
   return { name, password };
+}
+
+function setBlocked(name, blocked) {
+  validateName(name);
+  if (typeof blocked !== 'boolean') throw new Error('blocked должен быть boolean');
+  writeSecrets(authRecords.change(readSecrets(), name, { blocked }));
+  sessionsSnapshot = null;
+  if (blocked) disconnectUser(name);
+  return { name, blocked };
+}
+
+function disconnectUser(name) {
+  validateName(name);
+  sessionsSnapshot = null;
+  try {
+    const output = execFileSync('sudo', [ACCEL_CMD, `terminate username ${name} hard`], { encoding: 'utf8', timeout: 5000 });
+    if (/unknown command|command unknown|command not found|invalid (?:command|argument)|\berror\s*:|^failed\b|permission denied/im.test(output)) throw new Error('Command rejected');
+  } catch { throw new Error('Учётная запись сохранена, но не удалось отключить текущие сессии. Повторите отключение'); }
+  return { ok: true };
 }
 
 // ── Sessions (accel-cmd show sessions) ─────────────────
@@ -172,10 +166,12 @@ function parseSessions(raw) {
     if (cols.length !== headers.length) continue;
     const row = {};
     headers.forEach((h, idx) => { row[h] = cols[idx]; });
+    if (!/^sstp\d+$/.test(row.ifname || '')) continue;
     sessions.push({
       ifname: row.ifname || '',
       username: row.username || '',
       calledSid: row['called-sid'] || row.calling || '',
+      callingSid: row['calling-sid'] || '',
       sid: row.sid || '',
       uptime: row.uptime || '',
       type: row.type || '',
@@ -188,8 +184,11 @@ function parseSessions(raw) {
 let sessionsSnapshot = null;
 function getSessions() {
   if (sessionsSnapshot && Date.now() - sessionsSnapshot.time < 1000) return sessionsSnapshot.value;
-  const raw = safeRun('sudo /usr/sbin/accel-cmd "show sessions ifname,username,called-sid,sid,uptime,type,ip"');
-  if (!raw) return [];
+  let raw;
+  try {
+    raw = execFileSync('sudo', [ACCEL_CMD, 'show sessions ifname,username,calling-sid,called-sid,sid,uptime,type,ip'], { encoding: 'utf8', timeout: 5000, maxBuffer: 1024 * 1024 });
+  } catch { throw new Error('Не удалось получить SSTP-сессии'); }
+  if (!raw.includes('ifname') || !raw.includes('|')) throw new Error('Неизвестный формат SSTP-сессий');
   const value = parseSessions(raw);
   sessionsSnapshot = { time: Date.now(), value };
   return value;
@@ -198,7 +197,10 @@ function getSessions() {
 function disconnectSession(ifname) {
   sessionsSnapshot = null;
   if (!/^sstp\d+$/.test(ifname)) throw new Error('Некорректный ifname');
-  safeRun(`sudo /usr/sbin/accel-cmd "terminate if ${ifname}"`);
+  try {
+    const output = execFileSync('sudo', [ACCEL_CMD, `terminate if ${ifname} hard`], { encoding: 'utf8', timeout: 5000 });
+    if (/unknown command|command unknown|command not found|invalid (?:command|argument)|\berror\s*:|^failed\b|permission denied/im.test(output)) throw new Error('Command rejected');
+  } catch { throw new Error('Не удалось отключить сессию'); }
   return { ok: true };
 }
 
@@ -808,6 +810,10 @@ module.exports = {
   addUser,
   removeUser,
   setPassword,
+  validateName,
+  validatePassword,
+  setBlocked,
+  disconnectUser,
   getSessions,
   disconnectSession,
   restart,

@@ -13,6 +13,7 @@
 # и заменить ниже `wgadmin` на реальное имя.
 
 wgadmin ALL=(root) NOPASSWD: /usr/sbin/accel-cmd *
+wgadmin ALL=(root) NOPASSWD: /usr/bin/accel-cmd *
 wgadmin ALL=(root) NOPASSWD: /bin/cat /etc/accel-ppp/chap-secrets
 wgadmin ALL=(root) NOPASSWD: /usr/bin/install -m 600 /tmp/sstp-secrets-* /etc/accel-ppp/chap-secrets
 wgadmin ALL=(root) NOPASSWD: /bin/systemctl restart accel-ppp
