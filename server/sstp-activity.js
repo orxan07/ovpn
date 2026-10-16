@@ -11,8 +11,8 @@ function parseActivity(raw, sessions, since) {
     if (!line) continue;
     let record;
     try { record = JSON.parse(line); } catch { continue; }
-    const message = record.MESSAGE;
-    if (typeof message !== 'string') continue;
+    if (typeof record.MESSAGE !== 'string') continue;
+    const message = record.MESSAGE.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '');
     const timestamp = Number(record.__REALTIME_TIMESTAMP) / 1000;
     if (!Number.isFinite(timestamp) || timestamp < since) continue;
     const id = message.match(/\[(\d+) [^\]]+\]/)?.[1];

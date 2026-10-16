@@ -197,6 +197,29 @@ test('reused inbound connection ID cannot inherit another client target', () => 
 
 });
 
+test('colored sing-box logs retain client correlation and clean destinations', () => {
+  const timestamp = 200000;
+  const line = (id, message) => JSON.stringify({
+    __REALTIME_TIMESTAMP: timestamp * 1000,
+    MESSAGE: `\x1b[32mINFO\x1b[0m[123] [\x1b[38;5;195m${id}\x1b[0m 5.0s] ${message}`,
+  });
+  const raw = [
+    line(42, 'inbound/tun[tun-in]: inbound connection from 10.0.0.1:456'),
+    line(43, 'inbound/tun[tun-in]: inbound connection from 10.0.0.2:123'),
+    line(43, 'outbound/direct[direct]: outbound connection to other-client.example:443'),
+    line(42, 'sniffed protocol: tls, domain: \x1b[36mwww.instagram.com\x1b[0m'),
+    line(42, 'outbound/shadowsocks[\x1b[36moutline\x1b[0m]: outbound connection to \x1b[36m157.240.0.1:443\x1b[0m'),
+  ].join('\n');
+  const entries = parseActivity(raw, [{ ip: '10.0.0.1', observedAt: timestamp }], timestamp);
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].destination, '157.240.0.1:443');
+  assert.equal(entries[0].domain, 'www.instagram.com');
+  assert.equal(entries[0].outbound, 'outline');
+  assert.equal(entries[0].protocol, 'TCP');
+  assert.ok(!JSON.stringify(entries).includes('other-client'));
+  assert.ok(!JSON.stringify(entries).includes('\\u001b'));
+});
+
 console.log('Completed', count, 'tests');
 
 fs.rmSync(dir, { recursive: true, force: true });
