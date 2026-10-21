@@ -49,11 +49,15 @@ echo "[6/8] Outline (/opt/outline) ..."
 
 echo "[7/8] systemd unit'ы (нестандартные) ..."
 mkdir -p "$WORK/etc/systemd/system"
-for u in accel-ppp.service sstp-firewall.service sstp-singbox-route.service sing-box.service wg-admin.service outline.service; do
+for u in accel-ppp.service sstp-firewall.service sstp-singbox-route.service sstp-policy-route.service sstp-policy-route.timer sing-box.service wg-admin.service outline.service; do
   if [ -f "/etc/systemd/system/$u" ]; then
     cp -a "/etc/systemd/system/$u" "$WORK/etc/systemd/system/"
   fi
 done
+if [ -f /usr/local/sbin/ensure-sstp-policy-route ]; then
+  mkdir -p "$WORK/usr/local/sbin"
+  cp -a /usr/local/sbin/ensure-sstp-policy-route "$WORK/usr/local/sbin/"
+fi
 if [ -d /etc/systemd/system/wg-quick@wg0.service.d ]; then
   cp -a /etc/systemd/system/wg-quick@wg0.service.d "$WORK/etc/systemd/system/"
 fi

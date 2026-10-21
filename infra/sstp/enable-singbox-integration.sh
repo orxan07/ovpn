@@ -35,6 +35,7 @@ systemctl daemon-reload
 
 echo "Enabling and starting sstp-singbox-route ..."
 systemctl enable --now sstp-singbox-route
+bash "$REPO_DIR/install-policy-route.sh"
 
 echo
 echo "=== Active rules ==="

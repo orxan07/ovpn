@@ -1,0 +1,11 @@
+[Unit]
+Description=Check SSTP policy routing every 15 seconds
+
+[Timer]
+OnBootSec=20s
+OnUnitInactiveSec=15s
+AccuracySec=1s
+Unit=sstp-policy-route.service
+
+[Install]
+WantedBy=timers.target

@@ -8,6 +8,9 @@ echo "=== Deploy ==="
 cd "$APP_DIR"
 git pull
 bash scripts/install-app-command.sh
+if systemctl is-active --quiet sstp-singbox-route.service; then
+  sudo bash infra/sstp/install-policy-route.sh
+fi
 cd server && npm install --production
 node sync-presets.js
 sudo systemctl restart wg-admin

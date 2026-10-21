@@ -106,6 +106,10 @@ for svc in nginx wg-quick@wg0 wg-quick@wg1 sing-box sstp-firewall accel-ppp wg-a
   fi
 done
 
+if [ -f /etc/systemd/system/sstp-policy-route.timer ]; then
+  systemctl enable --now sstp-policy-route.timer
+fi
+
 echo
 echo "================================================================"
 echo "RESTORE OK"

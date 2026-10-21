@@ -180,6 +180,28 @@ sudo systemctl restart accel-ppp
 
 ---
 
+## Постоянный маршрут SSTP → sing-box
+
+`enable-singbox-integration.sh` устанавливает отдельное правило priority 8999:
+источник `10.27.0.0/24`, метка `0x2023`, таблица `2022`. Оно не зависит от
+временных правил sing-box с приоритетами 9000–9002. Домены whitelist продолжают
+выходить через Outline, остальные — через direct согласно конфигурации sing-box.
+
+Для обновления существующей интеграции без отключения клиентов:
+
+```bash
+sudo bash infra/sstp/install-policy-route.sh
+systemctl status sstp-policy-route.timer
+journalctl -u sstp-policy-route.service
+ip -4 rule show
+```
+
+Таймер раз в 15 секунд восстанавливает только это правило. При выключенной
+интеграции он ничего не добавляет; при недоступном TUN или конфликте priority
+8999 пишет ошибку и оставляет чужие правила без изменений. `disable-singbox-integration.sh`
+останавливает таймер и снимает правило. Причина удаления прежних правил
+9001–9002 на production пока не установлена.
+
 ## Удаление
 
 ```bash
