@@ -537,6 +537,8 @@ table inet sstp-singbox {
     chain prerouting_mark {
         type filter hook prerouting priority mangle; policy accept;
         iifname != "sstp*" return
+        # Keep Steam/SDR 1300-byte UDP probes out of the 1280-byte TUN.
+        udp dport { 4379, 4380, 27000-27250 } meta mark set 0 ct mark set 0 counter return comment "Steam UDP bypass TUN"
         ip daddr {
             10.0.0.0/8,
             172.16.0.0/12,

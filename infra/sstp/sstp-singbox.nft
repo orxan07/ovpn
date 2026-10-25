@@ -32,6 +32,10 @@ table inet sstp-singbox {
     chain prerouting_mark {
         type filter hook prerouting priority mangle; policy accept;
         iifname != "sstp*" return
+        # Steam/SDR sends 1300-byte UDP probes (1328 bytes with IP/UDP headers).
+        # Forward these directly: sbtun MTU 1280 cannot carry the region probes.
+        # Clear both marks so existing connections also stop entering the TUN.
+        udp dport { 4379, 4380, 27000-27250 } meta mark set 0 ct mark set 0 counter return comment "Steam UDP bypass TUN"
         # внутрисетевой / приватный трафик через sing-box не гоним
         ip daddr {
             10.0.0.0/8,

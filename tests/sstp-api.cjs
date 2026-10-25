@@ -27,7 +27,7 @@ let authContents = 'alice * password123 *\n';
 let installs = 0;
 const commandCalls = [];
 const commandModule = { exports: {} };
-vm.runInNewContext(fs.readFileSync(path.join(root, 'server/sstp.js'), 'utf8'), {
+vm.runInNewContext(fs.readFileSync(path.join(root, 'server/sstp.js'), 'utf8') + '\nmodule.exports.testNftRules = NFT_RULES;', {
   require(name) {
     if (name === 'child_process') return {
       execSync(command) { commandCount++; return command.includes('cat /etc/accel-ppp/chap-secrets') ? authContents : ''; },
@@ -53,6 +53,10 @@ vm.runInNewContext(fs.readFileSync(path.join(root, 'server/sstp.js'), 'utf8'), {
   __dirname: path.join(root, 'server'), module: commandModule, Buffer, process,
 });
 const realSstp = commandModule.exports;
+// Enabling integration from the UI must preserve the same routing as installation.
+const normalizeNft = source => source.replace(/#.*/g, '').replace(/\s+/g, ' ').trim();
+assert.equal(normalizeNft(realSstp.testNftRules),
+  normalizeNft(fs.readFileSync(path.join(root, 'infra/sstp/sstp-singbox.nft'), 'utf8')));
 let accounts = [{ name: 'alice', blocked: false, passwordLength: 8 }];
 let sessions = [];
 let failMutation = false;
