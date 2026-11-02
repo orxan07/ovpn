@@ -52,14 +52,15 @@ function renderSstpClients() {
     if (filter === 'online' && !c.online) return false;
     if (filter === 'offline' && (c.online || c.blocked)) return false;
     if (filter === 'blocked' && !c.blocked) return false;
-    return [c.name, c.note, c.ip, ...c.sessions.flatMap(s => [s.ip, s.callingSid])].join(' ').toLowerCase().includes(query);
+    const routing = routingLabelsFor(c.name);
+    return [c.name, c.note, c.ip, ...(routing?.groups || []), routing?.profile || '', ...c.sessions.flatMap(s => [s.ip, s.callingSid])].join(' ').toLowerCase().includes(query);
   }).sort((a, b) => sort === 'traffic' ? (b.upload + b.download) - (a.upload + a.download) : sort === 'name' ? a.name.localeCompare(b.name) : Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
   document.getElementById('sstpClientCount').textContent = `${filtered.length} / ${clients.length}`;
   document.getElementById('sstpClientRows').innerHTML = filtered.length ? filtered.map(c => {
     const quota = c.limitGb ? `${sstpBytes(c.upload + c.download)} из ${c.limitGb} GiB` : 'Без квоты';
     const warning = c.expired ? 'Срок доступа истёк' : c.quotaExceeded ? 'Квота исчерпана' : c.note;
     return `<article class="sstp-row">
-      <div><button class="sstp-name" data-name="${encodeURIComponent(c.name)}" onclick="openSstpClient(decodeURIComponent(this.dataset.name))">${esc(c.name)}</button><span class="sstp-sub">${esc((warning || 'Без заметки').slice(0, 100))}</span></div>
+      <div><button class="sstp-name" data-name="${encodeURIComponent(c.name)}" onclick="openSstpClient(decodeURIComponent(this.dataset.name))">${esc(c.name)}</button>${routingLabelHtml(c.name)}<span class="sstp-sub">${esc((warning || 'Без заметки').slice(0, 100))}</span></div>
       <div>${sstpBadge(c)}<span class="sstp-sub">${c.online ? `${c.sessions.length} сесс. · ${esc(c.sessions[0].ip || '—')}` : `Был: ${esc(sstpDate(c.lastSeen))}`}</span></div>
       <div class="sstp-value"><span class="sstp-mobile-label">Скорость ↓ / ↑</span>${c.online ? sstpRate(c.downloadBps) : '—'}<span class="sstp-sub">↑ ${c.online ? sstpRate(c.uploadBps) : '—'}</span></div>
       <div class="sstp-value"><span class="sstp-mobile-label">За сегодня</span>${sstpBytes(c.today.download + c.today.upload)}<span class="sstp-sub">↓ ${sstpBytes(c.today.download)} · ↑ ${sstpBytes(c.today.upload)}</span></div>
@@ -112,7 +113,8 @@ function renderSstpClientDetail() {
   const c = sstpClients.find(client => client.name === sstpSelected);
   if (!c) { closeSstpClient(); return; }
   document.getElementById('sstpDetailName').textContent = c.name;
-  document.getElementById('sstpDetailState').innerHTML = sstpBadge(c) + (c.quotaExceeded ? ' <span class="muted">Квота исчерпана</span>' : c.expired ? ' <span class="muted">Срок доступа истёк</span>' : '');
+  document.getElementById('sstpDetailState').innerHTML = sstpBadge(c) + routingLabelHtml(c.name) + (c.quotaExceeded ? ' <span class="muted">Квота исчерпана</span>' : c.expired ? ' <span class="muted">Срок доступа истёк</span>' : '');
+  const routing = routingLabelsFor(c.name);
   document.getElementById('sstpAccessBtn').textContent = c.blocked ? 'Разблокировать' : 'Заблокировать';
   document.getElementById('sstpDisconnectBtn').disabled = !c.online;
   document.getElementById('sstpDetailStats').innerHTML = [
@@ -122,6 +124,8 @@ function renderSstpClientDetail() {
     sstpStat('Отдача сейчас', c.online ? sstpRate(c.uploadBps) : '—'),
   ].join('');
   document.getElementById('sstpDetailInfo').innerHTML = [
+    ['Группы маршрутизации', routing ? routing.groups.join(', ') : 'Нет данных'],
+    ['Профиль маршрутизации', routing?.profile || (routing ? 'Общие правила сервера' : 'Нет данных')],
     ['Начало наблюдения', sstpDate(c.firstSeen)], ['Последняя активность', sstpDate(c.lastSeen)],
     ['Квота', c.limitGb ? `${c.limitGb} GiB · использовано ${sstpBytes(c.upload + c.download)}` : 'Без ограничений'],
     ['Доступ до', c.expiresAt ? sstpDate(c.expiresAt) : 'Без срока'],

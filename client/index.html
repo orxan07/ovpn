@@ -159,6 +159,9 @@
     #page-sstp .stat-label, #page-sstp .stat-sub, #page-sstp .info-label { color:#94a3b8; }
     #page-sstp .sstp-sub { color:#aebbd0; }
     @media(max-width:640px) { #sstpClientsPanel { display:flex;flex-direction:column; } #sstpClientList, #sstpClientDetail { order:0; } #sstpClientStats { order:1; } #sstpClientList>.sstp-heading>div { flex:1;min-width:0; } #sstpClientList>.sstp-heading>div>p { display:none; } #page-sstp .btn { min-height:42px; } #sstpDetailStats { grid-template-columns:repeat(2,minmax(0,1fr)); } body{padding:16px} .sstp-summary{grid-template-columns:1fr 1fr;gap:10px} .sstp-summary .stat-value{font-size:19px} .sstp-summary .stat-item{padding:14px} .sstp-row{grid-template-columns:1fr 1fr;gap:14px;padding:18px 0} .sstp-column-head{display:none} .sstp-row>:nth-child(4){display:block} .sstp-row>:last-child{display:block;grid-column:2;justify-self:end} .sstp-row>:nth-child(5){grid-column:1;grid-row:auto} .sstp-row>:nth-child(2){text-align:right} .sstp-mobile-label{display:block;color:#94a3b8;font-size:11px;margin-bottom:5px} .sstp-toolbar input{flex-basis:100%;width:100%} #page-sstp .sstp-toolbar select{flex:1 1 calc(50% - 5px);width:calc(50% - 5px);max-width:100%;font-size:13px} .sstp-settings-grid{grid-template-columns:1fr} #sstpDetailInfo{grid-template-columns:1fr} .sstp-activity-row{grid-template-columns:1fr 60px;gap:8px} .sstp-activity-row>:nth-child(3){grid-column:1} .sstp-activity-row>:nth-child(4){grid-column:2} #sstpServerPanel .card>div>div{min-width:0!important} #sstpServerPanel pre{white-space:pre-wrap;word-break:break-word} .sstp-heading{align-items:flex-start} }
+    #sstpClientList>.sstp-heading>div>p.sstp-route-legend { display:block; }
+    .sstp-route-labels { display:flex;flex-wrap:wrap;gap:5px;margin:7px 0; }
+    .sstp-route-label { background:#172b48;color:#93c5fd;border:1px solid #2b4a70;max-width:100%;white-space:normal;overflow-wrap:anywhere; }
     button[id^="routing"][id$="Apply"]:disabled { background:#2d3148; color:#94a3b8; opacity:0.55; cursor:default; }
     @media(max-width:640px) { #whitelistGroupsPanel .btn, #page-whitelist .tab { min-height:44px; } }
   </style>
@@ -235,7 +238,7 @@
       <section id="sstpClientsPanel">
         <div class="stats-grid sstp-summary" id="sstpClientStats"></div>
         <div id="sstpClientList" class="card">
-          <div class="sstp-heading"><div><h2 style="margin-bottom:5px">Все клиенты <span id="sstpClientCount" class="muted"></span></h2><p class="muted">Статус, скорость и расход по каждой учётной записи</p></div><button class="btn btn-primary" onclick="toggleSstpAdd()">Добавить клиента</button></div>
+          <div class="sstp-heading"><div><h2 style="margin-bottom:5px">Все клиенты <span id="sstpClientCount" class="muted"></span></h2><p class="sstp-route-legend" style="color:#b8c4d5;font-size:13px;line-height:1.6">Метки — применённые группы. ALL — общие правила сервера; DIRECT — прямой выход через VPS.</p></div><button class="btn btn-primary" onclick="toggleSstpAdd()">Добавить клиента</button></div>
           <div class="sstp-toolbar">
             <input type="search" id="sstpSearch" aria-label="Поиск SSTP-клиентов" placeholder="Поиск по имени, заметке или IP" oninput="renderSstpClients()">
             <select id="sstpFilter" aria-label="Статус SSTP-клиентов" onchange="renderSstpClients()"><option value="all">Все статусы</option><option value="online">Онлайн</option><option value="offline">Офлайн</option><option value="blocked">Заблокированы</option></select>
@@ -2116,6 +2119,7 @@
         notice.textContent = result.monitor?.error || '';
         renderSstpClients();
         renderSstpClientDetail();
+        loadRoutingLabels();
         document.getElementById('sstpOverviewLine').textContent = `${status.ok ? 'Сервер работает' : 'Сервер недоступен'} · ${status.publicHost || status.externalIp || '—'} · обновление каждые 5 с`;
       } catch (e) {
         const notice = document.getElementById('sstpNotice');

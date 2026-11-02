@@ -4,6 +4,44 @@ let routingBusy = false;
 let routingOperation = 0;
 let routingLoading = false;
 let routingApplied = null;
+let routingLabelState = null;
+let routingLabelPending = null;
+let routingLabelEpoch = 0;
+let routingLabelCheckedAt = 0;
+let routingLabelError = false;
+function publishRoutingLabels(snapshot) {
+  routingLabelEpoch++; routingLabelPending = null;
+  routingLabelState = structuredClone({ groups: snapshot.groups, profiles: snapshot.profiles });
+  routingLabelCheckedAt = Date.now(); routingLabelError = false;
+  if (sstpClients.length) { renderSstpClients(); renderSstpClientDetail(); }
+}
+async function loadRoutingLabels() {
+  if (routingLabelPending || Date.now() - routingLabelCheckedAt < 30000) return;
+  const request = { epoch: routingLabelEpoch };
+  routingLabelPending = request; routingLabelCheckedAt = Date.now();
+  try {
+    const snapshot = await api('GET', '/api/sstp/routing');
+    if (routingLabelPending !== request || routingLabelEpoch !== request.epoch) return;
+    if (!snapshot || !Array.isArray(snapshot.groups) || !Array.isArray(snapshot.profiles)) throw new Error('Нет данных о маршрутах');
+    publishRoutingLabels(snapshot);
+  } catch {
+    if (routingLabelPending !== request || routingLabelEpoch !== request.epoch) return;
+    routingLabelState = null; routingLabelError = true;
+    if (sstpClients.length) { renderSstpClients(); renderSstpClientDetail(); }
+  } finally { if (routingLabelPending === request) routingLabelPending = null; }
+}
+function routingLabelsFor(name) {
+  if (!routingLabelState) return null;
+  const profile = routingLabelState.profiles.find(p => p.users.includes(name));
+  if (!profile) return { groups: ['ALL'], profile: null, hint: 'Общие правила сервера; не означает весь трафик через Outline' };
+  return { groups: profile.groups.length ? profile.groups.map(id => routingLabelState.groups.find(g => g.id === id)?.name || id) : ['DIRECT'],
+    profile: profile.name, hint: profile.groups.length ? 'Применённые группы через Outline; остальное через основную VPS' : 'Без групп: весь трафик через основную VPS' };
+}
+function routingLabelHtml(name) {
+  const labels = routingLabelsFor(name);
+  if (!labels) return `<span class="sstp-route-labels"><span class="badge">${routingLabelError ? 'Маршрут неизвестен' : 'Маршрут: загрузка…'}</span></span>`;
+  return `<span class="sstp-route-labels" title="${esc(labels.hint)}">${labels.groups.map(group => `<span class="badge sstp-route-label">${esc(group)}</span>`).join('')}</span>`;
+}
 function showWhitelistSection(section) {
   document.getElementById('whitelistGroupsPanel').hidden = section !== 'groups';
   document.getElementById('whitelistGlobalPanel').hidden = section !== 'global';
@@ -20,6 +58,7 @@ function createRoutingGroup() {
   document.getElementById('routingGroupsEditor').lastElementChild?.previousElementSibling?.querySelector('input')?.focus();
 }
 function clearRouting() {
+  routingLabelEpoch++; routingLabelPending = null; routingLabelState = null; routingLabelCheckedAt = 0; routingLabelError = false;
   routingRequest++; routingOperation++; routingDraft = null; routingApplied = null; routingBusy = false; routingLoading = false;
   for (const editor of routingEditors()) { editor.inert = false; editor.textContent = ''; }
   for (const id of ['routingAppliedGroups', 'routingAppliedProfiles']) document.getElementById(id).textContent = '';
@@ -46,7 +85,7 @@ async function loadRouting() {
   try {
     const result = await api('GET', '/api/sstp/routing');
     if (request !== routingRequest) return;
-    routingDraft = result; routingApplied = structuredClone(result); renderRouting();
+    routingDraft = result; routingApplied = structuredClone(result); publishRoutingLabels(result); renderRouting();
     routingStatus(`Нет неприменённых изменений · версия ${result.revision}`, true);
   } catch (error) {
     if (request !== routingRequest) return;
@@ -191,7 +230,7 @@ async function applyRouting() {
   try {
     const result = await api('PUT', '/api/sstp/routing', { revision: routingDraft.revision, groups: routingDraft.groups, profiles: routingDraft.profiles });
     if (request !== routingRequest) return;
-    routingDraft = result; routingApplied = structuredClone(result); renderRouting();
+    routingDraft = result; routingApplied = structuredClone(result); publishRoutingLabels(result); renderRouting();
     routingStatus(result.warnings?.length ? result.warnings.join('. ') : `Применена версия ${result.revision}`, true);
   } catch (error) {
     if (request !== routingRequest) return;
