@@ -226,6 +226,7 @@
       </div>
       <div class="tabs" aria-label="Разделы SSTP">
         <button class="tab active" id="sstpClientsTab" onclick="showSstpView('clients')">Клиенты</button>
+        <button class="tab" id="sstpRoutingTab" onclick="showSstpView('routing')">Маршруты</button>
         <button class="tab" id="sstpServerTab" onclick="showSstpView('server')">Сервер и диагностика</button>
       </div>
       <div id="sstpNotice" class="sstp-notice" role="status" hidden></div>
@@ -260,11 +261,20 @@
               <div class="sstp-settings-grid"><label>Квота трафика, GiB<input type="number" id="sstpClientLimit" min="0.001" max="1000000" step="any" placeholder="Без ограничений"><small class="muted">Пусто — без квоты. Учитываются загрузка и отдача с начала учёта или последнего сброса.</small></label><label>Доступ до<input type="datetime-local" id="sstpClientExpiry"><small class="muted">Часовой пояс этого устройства. Пусто — без срока.</small></label></div>
               <p class="muted">По достижении квоты или срока клиент блокируется; проверка каждые 5 секунд. Для возобновления доступа снимите ограничение и разблокируйте клиента.</p>
               <div class="sstp-actions"><button class="btn btn-primary" type="submit" id="sstpSaveBtn">Сохранить настройки</button><span id="sstpSettingsMessage" role="status"></span></div>
-              <div class="sstp-settings-section"><h2>Подключение</h2><p class="muted" id="sstpIpAssignment"></p><p class="muted">Фиксированный IP, ограничение скорости и индивидуальный маршрут требуют отдельной настройки accel-ppp и сети; панель пока их не изменяет.</p><button type="button" class="btn btn-ghost" onclick="changeSstpPassword(sstpSelected)">Сменить пароль</button></div>
+              <div class="sstp-settings-section"><h2>Подключение</h2><p class="muted" id="sstpIpAssignment"></p><p class="muted">Индивидуальный маршрут и постоянный адрес назначаются во вкладке «Маршруты». Ограничение скорости требует отдельной настройки.</p><button type="button" class="btn btn-ghost" onclick="showSstpView('routing')">Настроить маршрут</button> <button type="button" class="btn btn-ghost" onclick="changeSstpPassword(sstpSelected)">Сменить пароль</button></div>
               <div class="sstp-settings-section"><h2>Управление данными</h2><p class="muted">Сброс обнуляет расход для квоты. История сессий сохраняется. Удаление клиента удаляет его реквизиты и учёт.</p><div class="sstp-actions"><button type="button" class="btn btn-warning" onclick="resetSstpUsage()">Сбросить учёт трафика</button><button type="button" class="btn btn-danger" onclick="removeSstpUser(sstpSelected)">Удалить клиента</button></div></div>
             </form>
           </div>
         </section>
+      </section>
+      <section id="sstpRoutingPanel" hidden>
+        <div class="card">
+          <h2>Маршруты по клиентам</h2>
+          <p style="color:#b8c4d5;line-height:1.6;margin-bottom:16px">Выбранные группы идут через Outline. Остальные сайты — напрямую через основную VPS. На Android используется обычный SSTP-профиль с отдельным логином для каждого ребёнка.</p>
+          <div class="sstp-actions"><button class="btn btn-primary" id="routingApply" onclick="applyRouting()" disabled>Применить изменения</button><button class="btn btn-ghost" onclick="loadRouting()">Отменить изменения</button><span id="routingMessage" role="status"></span></div>
+          <p style="color:#b8c4d5;font-size:13px;line-height:1.6;margin-top:12px">При изменении действующих правил sing-box кратко перезапустится. Клиенты с новым или снятым профилем будут переподключены. При ошибке предыдущая версия восстанавливается.</p>
+        </div>
+        <div id="routingEditor"></div>
       </section>
       <section id="sstpServerPanel" hidden>
       <div class="card">
@@ -2607,5 +2617,6 @@
     }
   </script>
   <script src="/sstp.js"></script>
+  <script src="/sstp-routing.js"></script>
 </body>
 </html>

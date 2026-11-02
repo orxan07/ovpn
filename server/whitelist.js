@@ -7,10 +7,10 @@ function getDomains() {
   const domains = new Set();
 
   for (const rule of config.dns?.rules || []) {
-    for (const d of rule.domain_suffix || []) domains.add(d);
+    for (const d of (rule.source_ip_cidr ? [] : rule.domain_suffix || [])) domains.add(d);
   }
   for (const rule of config.route?.rules || []) {
-    for (const d of rule.domain_suffix || []) domains.add(d);
+    for (const d of (rule.source_ip_cidr ? [] : rule.domain_suffix || [])) domains.add(d);
   }
 
   return Array.from(domains).sort();
@@ -68,10 +68,10 @@ function addIpCidr(cidr) {
 function collectDomains(config) {
   const domains = new Set();
   for (const rule of config.dns?.rules || []) {
-    for (const d of rule.domain_suffix || []) domains.add(d);
+    for (const d of (rule.source_ip_cidr ? [] : rule.domain_suffix || [])) domains.add(d);
   }
   for (const rule of config.route?.rules || []) {
-    for (const d of rule.domain_suffix || []) domains.add(d);
+    for (const d of (rule.source_ip_cidr ? [] : rule.domain_suffix || [])) domains.add(d);
   }
   return domains;
 }
@@ -104,7 +104,7 @@ function addPresetToConfig(config, preset) {
     let added = false;
 
     for (const rule of config.dns?.rules || []) {
-      if (rule.domain_suffix && rule.server === 'dns-proxy') {
+      if (!rule.source_ip_cidr && rule.domain_suffix && rule.server === 'dns-proxy') {
         if (!rule.domain_suffix.includes(d)) {
           rule.domain_suffix.push(d);
           added = true;
@@ -113,7 +113,7 @@ function addPresetToConfig(config, preset) {
       }
     }
     for (const rule of config.route?.rules || []) {
-      if (rule.domain_suffix && rule.outbound === 'outline') {
+      if (!rule.source_ip_cidr && rule.domain_suffix && rule.outbound === 'outline') {
         if (!rule.domain_suffix.includes(d)) {
           rule.domain_suffix.push(d);
           added = true;
@@ -152,7 +152,7 @@ function addDomain(domain) {
 
   // dns.rules — первое правило с domain_suffix
   for (const rule of config.dns?.rules || []) {
-    if (rule.domain_suffix && rule.server === 'dns-proxy') {
+    if (!rule.source_ip_cidr && rule.domain_suffix && rule.server === 'dns-proxy') {
       if (!rule.domain_suffix.includes(domain)) {
         rule.domain_suffix.push(domain);
         added = true;
@@ -162,7 +162,7 @@ function addDomain(domain) {
 
   // route.rules — правило с outbound: outline
   for (const rule of config.route?.rules || []) {
-    if (rule.domain_suffix && rule.outbound === 'outline') {
+    if (!rule.source_ip_cidr && rule.domain_suffix && rule.outbound === 'outline') {
       if (!rule.domain_suffix.includes(domain)) {
         rule.domain_suffix.push(domain);
         added = true;
@@ -182,12 +182,12 @@ function removeDomain(domain) {
   const config = readConfig();
 
   for (const rule of config.dns?.rules || []) {
-    if (rule.domain_suffix) {
+    if (!rule.source_ip_cidr && rule.domain_suffix) {
       rule.domain_suffix = rule.domain_suffix.filter(d => d !== domain);
     }
   }
   for (const rule of config.route?.rules || []) {
-    if (rule.domain_suffix) {
+    if (!rule.source_ip_cidr && rule.domain_suffix) {
       rule.domain_suffix = rule.domain_suffix.filter(d => d !== domain);
     }
   }

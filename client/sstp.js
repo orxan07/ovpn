@@ -21,8 +21,11 @@ function showSstpView(view) {
   sstpView = view;
   document.getElementById('sstpClientsPanel').hidden = view !== 'clients';
   document.getElementById('sstpServerPanel').hidden = view !== 'server';
+  document.getElementById('sstpRoutingPanel').hidden = view !== 'routing';
   document.getElementById('sstpClientsTab').classList.toggle('active', view === 'clients');
   document.getElementById('sstpServerTab').classList.toggle('active', view === 'server');
+  document.getElementById('sstpRoutingTab').classList.toggle('active', view === 'routing');
+  if (view === 'routing' && !routingDraft) loadRouting();
   if (view === 'server') { loadSstpPortState(); loadSstpFirewallState(); loadSstpSingboxState(); }
 }
 function toggleSstpAdd() {
@@ -84,6 +87,7 @@ function closeSstpClient() {
   document.getElementById('sstpClientDetail').hidden = true;
 }
 function clearSstpWorkspace() {
+  if (typeof clearRouting === 'function') clearRouting();
   closeSstpClient();
   sstpClients = [];
   sstpMonitorInfo = null;

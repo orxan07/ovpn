@@ -14,6 +14,9 @@ const outline = require('./outline');
 const mtproto = require('./mtproto');
 const { createMonitor } = require('./sstp-monitor');
 const { getActivity } = require('./sstp-activity');
+const sstpRouting = require('./sstp-routing');
+let routingRecoveryError = null;
+try { sstpRouting.recover(); } catch (error) { routingRecoveryError = error.message; console.error('[sstp routing recovery]', error.message); }
 let sstpMonitor = null;
 try {
   sstpMonitor = createMonitor({ getSessions: sstp.getSessions, getUsers: sstp.getUsers, blockUser: sstp.setBlocked, disconnectUser: sstp.disconnectUser });
@@ -64,6 +67,17 @@ app.use('/api', (req, res, next) => {
 });
 
 // ── Peers ──────────────────────────────────────────────
+
+app.get('/api/sstp/routing', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try { if (routingRecoveryError) throw new Error(routingRecoveryError); res.json(sstpRouting.get()); }
+  catch (error) { res.status(error.status || 500).json({ error: error.message }); }
+});
+app.put('/api/sstp/routing', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try { if (routingRecoveryError) throw new Error(routingRecoveryError); res.json(sstpRouting.apply(req.body)); }
+  catch (error) { res.status(error.status || 500).json({ error: error.message }); }
+});
 
 app.get('/api/peers', (req, res) => {
   try {

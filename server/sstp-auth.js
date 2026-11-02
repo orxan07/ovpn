@@ -42,6 +42,11 @@ function change(raw, name, patch) {
   if (patch.remove) lines.splice(record.index, 1);
   else {
     let line = record.line;
+    if (patch.ip !== undefined) {
+      if (typeof patch.ip !== 'string' || !/^(?:\*|10\.27\.0\.(?:[0-9]{1,3}))$/.test(patch.ip)) throw new Error('Некорректный адрес SSTP');
+      const field = record.fields[3];
+      line = field ? line.slice(0, field.index) + patch.ip + line.slice(field.index + field[0].length) : line + '\t' + patch.ip;
+    }
     if (patch.password !== undefined) {
       const field = record.fields[2];
       // Passwords are encoded as a quoted field, including literal # or quotes.
