@@ -26,6 +26,7 @@ function showSstpView(view) {
   document.getElementById('sstpServerTab').classList.toggle('active', view === 'server');
   document.getElementById('sstpRoutingTab').classList.toggle('active', view === 'routing');
   if (view === 'routing' && !routingDraft) loadRouting();
+  else if (view === 'routing' && !routingBusy && !routingLoading) renderRouting();
   if (view === 'server') { loadSstpPortState(); loadSstpFirewallState(); loadSstpSingboxState(); }
 }
 function toggleSstpAdd() {

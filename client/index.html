@@ -159,6 +159,8 @@
     #page-sstp .stat-label, #page-sstp .stat-sub, #page-sstp .info-label { color:#94a3b8; }
     #page-sstp .sstp-sub { color:#aebbd0; }
     @media(max-width:640px) { #sstpClientsPanel { display:flex;flex-direction:column; } #sstpClientList, #sstpClientDetail { order:0; } #sstpClientStats { order:1; } #sstpClientList>.sstp-heading>div { flex:1;min-width:0; } #sstpClientList>.sstp-heading>div>p { display:none; } #page-sstp .btn { min-height:42px; } #sstpDetailStats { grid-template-columns:repeat(2,minmax(0,1fr)); } body{padding:16px} .sstp-summary{grid-template-columns:1fr 1fr;gap:10px} .sstp-summary .stat-value{font-size:19px} .sstp-summary .stat-item{padding:14px} .sstp-row{grid-template-columns:1fr 1fr;gap:14px;padding:18px 0} .sstp-column-head{display:none} .sstp-row>:nth-child(4){display:block} .sstp-row>:last-child{display:block;grid-column:2;justify-self:end} .sstp-row>:nth-child(5){grid-column:1;grid-row:auto} .sstp-row>:nth-child(2){text-align:right} .sstp-mobile-label{display:block;color:#94a3b8;font-size:11px;margin-bottom:5px} .sstp-toolbar input{flex-basis:100%;width:100%} #page-sstp .sstp-toolbar select{flex:1 1 calc(50% - 5px);width:calc(50% - 5px);max-width:100%;font-size:13px} .sstp-settings-grid{grid-template-columns:1fr} #sstpDetailInfo{grid-template-columns:1fr} .sstp-activity-row{grid-template-columns:1fr 60px;gap:8px} .sstp-activity-row>:nth-child(3){grid-column:1} .sstp-activity-row>:nth-child(4){grid-column:2} #sstpServerPanel .card>div>div{min-width:0!important} #sstpServerPanel pre{white-space:pre-wrap;word-break:break-word} .sstp-heading{align-items:flex-start} }
+    button[id^="routing"][id$="Apply"]:disabled { background:#2d3148; color:#94a3b8; opacity:0.55; cursor:default; }
+    @media(max-width:640px) { #whitelistGroupsPanel .btn, #page-whitelist .tab { min-height:44px; } }
   </style>
 </head>
 <body>
@@ -271,9 +273,10 @@
         <div class="card">
           <h2>Маршруты по клиентам</h2>
           <p style="color:#b8c4d5;line-height:1.6;margin-bottom:16px">Выбранные группы идут через Outline. Остальные сайты — напрямую через основную VPS. На Android используется обычный SSTP-профиль с отдельным логином для каждого ребёнка.</p>
-          <div class="sstp-actions"><button class="btn btn-primary" id="routingApply" onclick="applyRouting()" disabled>Применить изменения</button><button class="btn btn-ghost" onclick="loadRouting()">Отменить изменения</button><span id="routingMessage" role="status"></span></div>
+          <div class="sstp-actions"><button class="btn btn-primary" id="routingApply" onclick="applyRouting()" disabled>Применить изменения</button><button class="btn btn-ghost" onclick="loadRouting()">Отменить изменения</button><button class="btn btn-ghost" onclick="showPage('whitelist');showWhitelistSection('groups')">Группы в Whitelist →</button><span id="routingMessage" role="status"></span></div>
           <p style="color:#b8c4d5;font-size:13px;line-height:1.6;margin-top:12px">При изменении действующих правил sing-box кратко перезапустится. Клиенты с новым или снятым профилем будут переподключены. При ошибке предыдущая версия восстанавливается.</p>
         </div>
+        <div id="routingAppliedProfiles"></div>
         <div id="routingEditor"></div>
       </section>
       <section id="sstpServerPanel" hidden>
@@ -487,6 +490,18 @@
 
     <!-- Страница: Whitelist -->
     <div id="page-whitelist" style="display:none;">
+      <div class="sstp-heading"><div><h2 style="font-size:24px;margin-bottom:6px">Whitelist</h2><p style="color:#b8c4d5;line-height:1.6">Группы сервисов для отдельных профилей и общие правила сервера</p></div></div>
+      <div class="tabs" aria-label="Разделы Whitelist"><button class="tab active" id="whitelistGroupsTab" onclick="showWhitelistSection('groups')">Группы сервисов</button><button class="tab" id="whitelistGlobalTab" onclick="showWhitelistSection('global')">Общий whitelist</button></div>
+      <section id="whitelistGroupsPanel">
+        <div class="card"><div class="sstp-heading"><h2 style="margin-bottom:0">Группы сервисов</h2><button class="btn btn-ghost" onclick="createRoutingGroup()">Создать группу</button></div><p style="color:#b8c4d5;line-height:1.6;margin-bottom:16px">Создавайте группы доменов и назначайте их клиентам через профили SSTP.</p>
+          <div class="sstp-actions"><button class="btn btn-primary" id="routingGroupsApply" onclick="applyRouting()" disabled>Применить изменения</button><button class="btn btn-ghost" onclick="loadRouting()">Отменить изменения</button><button class="btn btn-ghost" onclick="showPage('sstp');showSstpView('routing')">Назначить клиентам →</button></div>
+          <p id="routingGroupsMessage" role="status" style="margin-top:12px"></p>
+          <p style="color:#b8c4d5;line-height:1.6;font-size:13px;margin-top:12px">Изменения групп и профилей применяются вместе. Активные подключения могут кратко прерваться.</p>
+        </div>
+        <div id="routingAppliedGroups"></div>
+        <div id="routingGroupsEditor"></div>
+      </section>
+      <section id="whitelistGlobalPanel" hidden>
       <div class="card">
         <h2>Режим маршрутизации</h2>
         <p class="muted" style="margin-bottom:12px;">
@@ -506,8 +521,8 @@
         </div>
       </div>
       <div class="card">
-        <h2>Предустановки</h2>
-        <p class="muted" style="margin-bottom:12px;">Добавляют домены и IP-диапазоны для популярных сервисов. Уже добавленные пропускаются.</p>
+        <h2>Добавить сервис в общий whitelist</h2>
+        <p class="muted" style="margin-bottom:12px;">Эти готовые наборы меняют общие правила пользователей без индивидуального профиля. Группы для профилей редактируются во вкладке «Группы сервисов».</p>
         <div id="presetsList" style="display:flex; flex-wrap:wrap; gap:8px;">
           <span class="muted">Загрузка...</span>
         </div>
@@ -521,6 +536,7 @@
         </div>
         <div id="domainList"></div>
       </div>
+      </section>
     </div>
 
     <!-- Страница: Диагностика -->
@@ -870,6 +886,8 @@
         loadSystem();
         systemTimer = setInterval(loadSystem, 5000);
       } else if (page === 'whitelist') {
+        if (!routingDraft) loadRouting();
+        else if (!routingBusy && !routingLoading) renderRouting();
         loadRoutingMode();
         loadPresets();
         loadWhitelist();
