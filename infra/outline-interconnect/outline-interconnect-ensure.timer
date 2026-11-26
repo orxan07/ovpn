@@ -1,0 +1,10 @@
+[Unit]
+Description=Restore the Outline link if its interface disappears
+
+[Timer]
+OnBootSec=10s
+OnUnitInactiveSec=30s
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

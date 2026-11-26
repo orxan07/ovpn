@@ -268,7 +268,30 @@ function updateOutline(accessKey) {
   return addProfile(accessKey, null, true);
 }
 
+// Only the established server has a corresponding point-to-point endpoint.
+function restoreInterconnectProfile() {
+  ensureInitialProfile();
+  const store = loadStore();
+  const profile = store.profiles.find(item => item.id === store.activeProfileId);
+  const supported = ['10.253.201.2', '156.67.63.163'];
+  if (!profile || !supported.includes(profile.outbound.server) || profile.outbound.server_port !== 25235) {
+    return false;
+  }
+  const target = { ...activeOutboundFromProfile(profile), server: '10.253.201.2' };
+  const current = readConfig().outbounds?.find(item => item.tag === 'outline');
+  if (!current || Object.keys(target).some(key => current[key] !== target[key])) {
+    writeActiveOutline(target);
+  }
+  if (profile.outbound.server !== target.server) {
+    profile.outbound.server = target.server;
+    profile.updatedAt = Date.now();
+    saveStore(store);
+  }
+  return true;
+}
+
 module.exports = {
+  restoreInterconnectProfile,
   getOutline,
   getProfiles,
   addProfile,

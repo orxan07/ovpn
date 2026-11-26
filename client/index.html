@@ -428,6 +428,12 @@
 
     <!-- Страница: Прокси -->
     <div id="page-proxy" style="display:none;">
+      <div class="card" id="outlineRecovery">
+        <h2>Маршрут SSTP через Outline</h2>
+        <p class="muted" style="margin-bottom:12px;">Восстановите межсерверный туннель и проверьте выход в интернет через Outline.</p>
+        <button type="button" class="btn btn-primary" id="outlineRestoreBtn" onclick="restoreOutlineRoute()">Восстановить маршрут</button>
+        <div id="outlineRestoreStatus" role="status" aria-live="polite" class="muted" style="margin-top:8px;"></div>
+      </div>
       <div class="card">
         <h2>Telegram · MTProto</h2>
         <p class="muted" style="margin-bottom:16px;">Подключение Telegram без VPN через отдельный сервер. Введите выданные сервером реквизиты, сохраните и откройте ссылку на своём устройстве. Изменение этих полей сохраняет реквизиты в панели; настройки контейнера на VPS меняются отдельно.</p>
@@ -1202,6 +1208,27 @@
         renderOutlineProfiles(outline.profiles || []);
       } catch (e) {
         currentEl.innerHTML = `<span class="error">${esc(e.message)}</span>`;
+      }
+    }
+
+    async function restoreOutlineRoute() {
+      const btn = document.getElementById('outlineRestoreBtn');
+      const status = document.getElementById('outlineRestoreStatus');
+      if (btn.disabled) return;
+      btn.disabled = true;
+      status.className = 'muted';
+      status.textContent = 'Восстанавливаем маршрут и проверяем соединение…';
+      try {
+        const result = await api('POST', '/api/outline/interconnect/restore');
+        if (!result) { status.textContent = ''; return; }
+        status.className = '';
+        status.textContent = 'Маршрут работает. HTTPS-запрос через SSTP вышел в интернет через Outline.';
+        await loadOutlineSettings();
+      } catch (e) {
+        status.className = 'error';
+        status.textContent = e.message;
+      } finally {
+        btn.disabled = false;
       }
     }
 

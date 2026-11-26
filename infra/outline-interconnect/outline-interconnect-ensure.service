@@ -1,0 +1,8 @@
+[Unit]
+Description=Ensure the Outline point-to-point link is available
+After=network-online.target outline-interconnect.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/outline-interconnect-ensure

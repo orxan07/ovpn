@@ -2,7 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const { execSync } = require('child_process');
+const { execSync, execFile } = require('child_process');
+const runService = require('util').promisify(execFile);
 const wg = require('./wg');
 const system = require('./system');
 const store = require('./store');
@@ -330,6 +331,29 @@ app.put('/api/mtproto', async (req, res) => {
     res.json(await mtproto.setConfig(req.body));
   } catch (e) {
     res.status(e instanceof mtproto.ValidationError ? 400 : 500).json({ error: e.message });
+  }
+});
+
+let outlineRecoveryBusy = false;
+app.post('/api/outline/interconnect/restore', async (_req, res) => {
+  if (outlineRecoveryBusy) return res.status(409).json({ error: 'Восстановление уже выполняется.' });
+  outlineRecoveryBusy = true;
+  let message = 'Не удалось восстановить интерфейс на основной VPS.';
+  try {
+    const start = unit => runService('sudo', ['-n', '/usr/bin/systemctl', 'start', unit], { timeout: 20000 });
+    await start('outline-interconnect-ensure.service');
+    message = 'Не удалось применить профиль Outline.';
+    if (!outline.restoreInterconnectProfile()) {
+      return res.status(409).json({ error: 'Выберите профиль межсерверного Outline и повторите.' });
+    }
+    await start('sing-box.service');
+    message = 'Настройки применены. Проверка выхода через Outline не прошла. Повторите через 30 секунд.';
+    await start('outline-interconnect-probe.service');
+    res.json({ ok: true });
+  } catch {
+    res.status(503).json({ error: message });
+  } finally {
+    outlineRecoveryBusy = false;
   }
 });
 

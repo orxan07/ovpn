@@ -1,0 +1,7 @@
+[Unit]
+Description=Verify SSTP HTTPS egress through Outline
+
+[Service]
+Type=oneshot
+TimeoutStartSec=12
+ExecStart=/usr/local/sbin/outline-interconnect-probe
